@@ -35,21 +35,21 @@ export default function DeleteExpenseButton({ id }: DeleteExpenseButtonProps) {
 
 	if (isConfirming) {
 		return (
-			<div className='flex flex-col space-y-2'>
+			<div className='flex-row-reverse flex md:flex-row space-y-1 gap-2'>
 				{error && <p className='text-sm text-red-600'>{error}</p>}
-				<p className='text-sm text-gray-700'>
+				<p className='text-xs text-gray-700'>
 					Are you sure you want to delete this expense?
 				</p>
-				<div className='flex space-x-2'>
+				<div className='flex space-x-2 h-10'>
 					<button
 						onClick={() => setIsConfirming(false)}
-						className='px-3 py-1 text-xs border border-gray-300 text-gray-700 rounded hover:bg-gray-50'
+						className='px-3 py-1 text-xs border-none text-gray-700 rounded-lg hover:bg-gray-300'
 						disabled={isDeleting}>
 						Cancel
 					</button>
 					<button
 						onClick={handleDelete}
-						className='px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700'
+						className='w-32 px-4 text-white hover:bg-red-600 border-none rounded-lg bg-red-500'
 						disabled={isDeleting}>
 						{isDeleting ? 'Deleting...' : 'Confirm Delete'}
 					</button>
@@ -61,7 +61,7 @@ export default function DeleteExpenseButton({ id }: DeleteExpenseButtonProps) {
 	return (
 		<button
 			onClick={() => setIsConfirming(true)}
-			className='text-red-600 hover:text-red-800'>
+			className='h-10 px-4 text-white hover:bg-red-600 border-none rounded-lg bg-red-500'>
 			Delete Expense
 		</button>
 	);

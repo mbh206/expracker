@@ -101,7 +101,7 @@ export default async function HouseholdDetailPage({
 				<div className='flex space-x-2'>
 					<Link
 						href='/households'
-						className='px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50'>
+						className='px-4 py-2 border border-gray-300 text-gray-400 rounded-md hover:bg-gray-50'>
 						Back to Households
 					</Link>
 					{isAdmin && (
@@ -114,7 +114,7 @@ export default async function HouseholdDetailPage({
 				</div>
 			</div>
 
-			<div className='bg-white rounded-lg shadow-md overflow-hidden mb-6'>
+			<div className='rounded-lg shadow-md overflow-hidden mb-6'>
 				<div className='p-6'>
 					<div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
 						<div>
@@ -172,8 +172,8 @@ export default async function HouseholdDetailPage({
 									<span
 										className={`px-2 py-1 text-xs rounded-full ${
 											member.role === 'admin'
-												? 'bg-blue-100 text-blue-800'
-												: 'bg-gray-100 text-gray-800'
+												? 'bg-yellow-200 text-gray-800'
+												: 'bg-gray-200 text-gray-800'
 										}`}>
 										{member.role === 'admin' ? 'Admin' : 'Member'}
 									</span>

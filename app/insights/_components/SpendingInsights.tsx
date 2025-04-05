@@ -174,44 +174,36 @@ export default function SpendingInsights({ expenses }: SpendingInsightsProps) {
 	return (
 		<div className='space-y-4'>
 			<div className='grid grid-cols-2 gap-4'>
-				<div className='p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg'>
-					<div className='text-sm text-gray-500 dark:text-gray-400'>
-						Total Spent
-					</div>
-					<div className='text-xl font-bold text-gray-900 dark:text-white'>
+				<div className='p-4 bg-blue-50 rounded-lg'>
+					<div className='text-sm text-gray-500'>Total Spent</div>
+					<div className='text-xl font-bold text-gray-900'>
 						${insights.totalSpent.toFixed(2)}
 					</div>
 				</div>
-				<div className='p-4 bg-green-50 dark:bg-green-900/30 rounded-lg'>
-					<div className='text-sm text-gray-500 dark:text-gray-400'>
-						Monthly Average
-					</div>
-					<div className='text-xl font-bold text-gray-900 dark:text-white'>
+				<div className='p-4 bg-green-50 rounded-lg'>
+					<div className='text-sm text-gray-500'>Monthly Average</div>
+					<div className='text-xl font-bold text-gray-900'>
 						${insights.monthlyAverage.toFixed(2)}
 					</div>
 				</div>
 			</div>
 
-			<div className='p-4 bg-gray-50 dark:bg-gray-700 rounded-lg'>
-				<div className='text-sm text-gray-500 dark:text-gray-400'>
-					Top Spending Category
-				</div>
-				<div className='text-xl font-bold text-gray-900 dark:text-white'>
+			<div className='p-4 bg-gray-50 rounded-lg'>
+				<div className='text-sm text-gray-500'>Top Spending Category</div>
+				<div className='text-xl font-bold text-gray-900'>
 					{insights.topCategory.name}
 				</div>
-				<div className='text-sm text-gray-700 dark:text-gray-300'>
+				<div className='text-sm text-gray-700'>
 					${insights.topCategory.amount.toFixed(2)}
 				</div>
 			</div>
 
-			<div className='p-4 bg-gray-50 dark:bg-gray-700 rounded-lg'>
-				<div className='text-sm text-gray-500 dark:text-gray-400'>
-					Biggest Expense
-				</div>
-				<div className='text-xl font-bold text-gray-900 dark:text-white truncate'>
+			<div className='p-4 bg-gray-50 rounded-lg'>
+				<div className='text-sm text-gray-500'>Biggest Expense</div>
+				<div className='text-xl font-bold text-gray-900 truncate'>
 					{insights.biggestExpense.description}
 				</div>
-				<div className='flex justify-between text-sm text-gray-700 dark:text-gray-300'>
+				<div className='flex justify-between text-sm text-gray-700'>
 					<span>${insights.biggestExpense.amount.toFixed(2)}</span>
 					<span>{format(insights.biggestExpense.date, 'MMM d, yyyy')}</span>
 				</div>
@@ -221,24 +213,22 @@ export default function SpendingInsights({ expenses }: SpendingInsightsProps) {
 				<div
 					className={`p-4 rounded-lg ${
 						insights.monthOverMonthChange.increased
-							? 'bg-red-50 dark:bg-red-900/30'
-							: 'bg-green-50 dark:bg-green-900/30'
+							? 'bg-red-50'
+							: 'bg-green-50'
 					}`}>
-					<div className='text-sm text-gray-500 dark:text-gray-400'>
-						Month-over-Month Change
-					</div>
+					<div className='text-sm text-gray-500'>Month-over-Month Change</div>
 					<div className='text-xl font-bold flex items-center'>
 						<span
 							className={
 								insights.monthOverMonthChange.increased
-									? 'text-red-600 dark:text-red-400'
-									: 'text-green-600 dark:text-green-400'
+									? 'text-red-600'
+									: 'text-green-600'
 							}>
 							{insights.monthOverMonthChange.increased ? '↑' : '↓'}{' '}
 							{insights.monthOverMonthChange.percentage.toFixed(1)}%
 						</span>
 					</div>
-					<div className='text-sm text-gray-700 dark:text-gray-300'>
+					<div className='text-sm text-gray-700'>
 						{insights.monthOverMonthChange.increased
 							? 'Spending increased by'
 							: 'Spending decreased by'}{' '}
@@ -249,14 +239,12 @@ export default function SpendingInsights({ expenses }: SpendingInsightsProps) {
 			)}
 
 			{insights.unusualSpending && (
-				<div className='p-4 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg'>
-					<div className='text-sm text-gray-500 dark:text-gray-400'>
-						Unusual Spending Detected
-					</div>
-					<div className='text-xl font-bold text-gray-900 dark:text-white'>
+				<div className='p-4 bg-yellow-50 rounded-lg'>
+					<div className='text-sm text-gray-500'>Unusual Spending Detected</div>
+					<div className='text-xl font-bold text-gray-900'>
 						{insights.unusualSpending.category}
 					</div>
-					<div className='text-sm text-gray-700 dark:text-gray-300'>
+					<div className='text-sm text-gray-700'>
 						Spending is up {insights.unusualSpending.percentage.toFixed(1)}%
 						compared to your monthly average
 					</div>

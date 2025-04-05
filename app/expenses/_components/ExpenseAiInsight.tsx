@@ -1,7 +1,9 @@
+// app/expenses/_components/ExpenseAiInsight.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useCallback } from 'react';
+import { useRateLimitedApi } from '../../../lib/hooks/useRateLimitApi'; // Fixed import path
+import RateLimitAlert from '@/components/RateLimitAlert';
 
 interface Expense {
 	id: string;
@@ -21,103 +23,131 @@ export default function ExpenseAiInsight({
 	onClose,
 }: ExpenseAiInsightProps) {
 	const [insights, setInsights] = useState<string[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
 	const [userQuestion, setUserQuestion] = useState('');
 	const [conversation, setConversation] = useState<
 		{ role: string; content: string }[]
 	>([]);
-	const [isAskingQuestion, setIsAskingQuestion] = useState(false);
+	// Prevent multiple API calls with one ref
+	const [initialFetchCompleted, setInitialFetchCompleted] = useState(false);
 
-	useEffect(() => {
-		fetchInsights();
-	}, [expense]);
+	// Use our custom hook for the initial insights
+	const {
+		data: initialInsightsData,
+		loading: initialInsightsLoading,
+		error: initialInsightsError,
+		rateLimitState: initialInsightsRateLimit,
+		executeRequest: fetchInitialInsights,
+	} = useRateLimitedApi<{ answer: string }>('/api/advice/llm-analyze');
 
-	const fetchInsights = async () => {
-		setIsLoading(true);
-		try {
-			// Use the new LLM endpoint instead of the old one
-			const response = await axios.post('/api/advice/llm-analyze', {
-				expenseId: expense.id,
-				question:
-					'What are the key insights about this expense? How does it compare to my typical spending?',
+	// Use our custom hook for asking questions
+	const {
+		data: questionData,
+		loading: questionLoading,
+		error: questionError,
+		rateLimitState: questionRateLimit,
+		executeRequest: askQuestion,
+	} = useRateLimitedApi<{ answer: string }>('/api/advice/llm-analyze');
+
+	// Combine rate limit states
+	const isRateLimited =
+		initialInsightsRateLimit.isRateLimited || questionRateLimit.isRateLimited;
+	const rateLimitReset = Math.max(
+		initialInsightsRateLimit.rateLimitReset || 0,
+		questionRateLimit.rateLimitReset || 0
+	);
+	const retryAfter = rateLimitReset
+		? Math.max(rateLimitReset - Math.floor(Date.now() / 1000), 0)
+		: 3600; // Default to 1 hour
+
+	// Fetch initial insights - using useCallback to prevent recreation on each render
+	const loadInitialInsights = useCallback(() => {
+		if (!initialFetchCompleted && expense?.id) {
+			setInitialFetchCompleted(true); // Mark as completed to prevent additional calls
+			fetchInitialInsights({
+				method: 'POST',
+				data: {
+					expenseId: expense.id,
+					question:
+						'What are the key insights about this expense? How does it compare to my typical spending?',
+				},
 			});
+		}
+	}, [expense?.id, fetchInitialInsights, initialFetchCompleted]);
 
+	// Fetch insights when component mounts
+	useEffect(() => {
+		loadInitialInsights();
+	}, [loadInitialInsights]);
+
+	// Update insights when data changes
+	useEffect(() => {
+		if (initialInsightsData && !initialInsightsLoading) {
 			// Check if the response contains an array or a string
-			if (typeof response.data.answer === 'string') {
+			if (typeof initialInsightsData.answer === 'string') {
 				// Split on double newlines or handle as a single string
-				const insightArray = response.data.answer.includes('\n\n')
-					? response.data.answer
+				const insightArray = initialInsightsData.answer.includes('\n\n')
+					? initialInsightsData.answer
 							.split('\n\n')
 							.filter((line) => line.trim() !== '')
-					: [response.data.answer];
+					: [initialInsightsData.answer];
 				setInsights(insightArray);
-			} else if (Array.isArray(response.data.answer)) {
-				setInsights(response.data.answer);
+			} else if (Array.isArray(initialInsightsData.answer)) {
+				setInsights(initialInsightsData.answer);
 			} else {
 				setInsights([
 					'Analysis complete. Ask questions about this expense below.',
 				]);
 			}
-		} catch (error) {
-			console.error('Failed to fetch insights:', error);
-			setInsights([
-				"I'm currently having trouble analyzing this expense.",
-				'You can still ask questions about it below or try again later.',
-			]);
-		} finally {
-			setIsLoading(false);
 		}
-	};
+	}, [initialInsightsData, initialInsightsLoading]);
+
+	// Update conversation when question data changes
+	useEffect(() => {
+		if (
+			questionData &&
+			!questionLoading &&
+			conversation.length > 0 &&
+			conversation[conversation.length - 1].role === 'user'
+		) {
+			// Add AI response to conversation
+			setConversation((prev) => [
+				...prev,
+				{ role: 'assistant', content: questionData.answer },
+			]);
+		}
+	}, [questionData, questionLoading, conversation]);
 
 	const handleSubmitQuestion = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!userQuestion.trim()) return;
+		if (!userQuestion.trim() || isRateLimited || questionLoading) return;
 
 		const question = userQuestion.trim();
 		setUserQuestion('');
-		setIsAskingQuestion(true);
 
 		// Add user question to conversation
 		setConversation((prev) => [...prev, { role: 'user', content: question }]);
 
-		try {
-			// Use the LLM endpoint
-			const response = await axios.post('/api/advice/llm-analyze', {
+		// Use our rate-limited API hook
+		await askQuestion({
+			method: 'POST',
+			data: {
 				expenseId: expense.id,
 				question,
 				conversationHistory: conversation,
-			});
-
-			// Add AI response to conversation
-			setConversation((prev) => [
-				...prev,
-				{ role: 'assistant', content: response.data.answer },
-			]);
-		} catch (error) {
-			console.error('Failed to get answer:', error);
-			setConversation((prev) => [
-				...prev,
-				{
-					role: 'assistant',
-					content:
-						"I'm sorry, I couldn't process your question. Please try again.",
-				},
-			]);
-		} finally {
-			setIsAskingQuestion(false);
-		}
+			},
+		});
 	};
 
 	return (
-		<div className='fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4'>
-			<div className='bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col'>
-				<div className='p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center'>
-					<h2 className='text-xl font-semibold text-gray-900 dark:text-white'>
+		<div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+			<div className='bg-white rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col'>
+				<div className='p-4 border-b border-gray-200 flex justify-between items-center'>
+					<h2 className='text-xl font-semibold text-gray-900'>
 						AI Insights for Your Expense
 					</h2>
 					<button
 						onClick={onClose}
-						className='text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'>
+						className='text-gray-500 hover:text-gray-700'>
 						<svg
 							className='w-5 h-5'
 							fill='none'
@@ -134,63 +164,58 @@ export default function ExpenseAiInsight({
 					</button>
 				</div>
 
-				<div className='p-4 border-b border-gray-200 dark:border-gray-700'>
+				<div className='p-4 border-b border-gray-200'>
 					<div className='flex justify-between mb-2'>
-						<span className='font-medium text-gray-700 dark:text-gray-300'>
-							Description:
-						</span>
-						<span className='text-gray-900 dark:text-white'>
-							{expense.description}
-						</span>
+						<span className='font-medium text-gray-700'>Description:</span>
+						<span className='text-gray-900'>{expense.description}</span>
 					</div>
 					<div className='flex justify-between mb-2'>
-						<span className='font-medium text-gray-700 dark:text-gray-300'>
-							Amount:
-						</span>
-						<span className='text-gray-900 dark:text-white'>
-							${expense.amount.toFixed(2)}
-						</span>
+						<span className='font-medium text-gray-700'>Amount:</span>
+						<span className='text-gray-900'>${expense.amount.toFixed(2)}</span>
 					</div>
 					<div className='flex justify-between mb-2'>
-						<span className='font-medium text-gray-700 dark:text-gray-300'>
-							Category:
-						</span>
-						<span className='text-gray-900 dark:text-white'>
-							{expense.category}
-						</span>
+						<span className='font-medium text-gray-700'>Category:</span>
+						<span className='text-gray-900'>{expense.category}</span>
 					</div>
 					<div className='flex justify-between mb-2'>
-						<span className='font-medium text-gray-700 dark:text-gray-300'>
-							Date:
-						</span>
-						<span className='text-gray-900 dark:text-white'>
+						<span className='font-medium text-gray-700'>Date:</span>
+						<span className='text-gray-900'>
 							{new Date(expense.date).toLocaleDateString()}
 						</span>
 					</div>
 				</div>
 
 				<div className='flex-grow overflow-auto p-4'>
-					{isLoading ? (
+					{/* Rate Limit Alert - Show when rate limited */}
+					{isRateLimited && (
+						<RateLimitAlert
+							retryAfter={retryAfter}
+							message="You've reached the maximum number of AI analysis requests for now."
+						/>
+					)}
+
+					{initialInsightsLoading ? (
 						<div className='flex items-center justify-center h-full'>
-							<div className='w-8 h-8 border-4 border-blue-200 dark:border-blue-700 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin'></div>
-							<p className='ml-2 text-gray-600 dark:text-gray-400'>
-								Analyzing your expense...
+							<div className='w-8 h-8 border-4 border-blue-200 dark:border-blue-700 border-t-blue-600 rounded-full animate-spin'></div>
+							<p className='ml-2 text-gray-600'>Analyzing your expense...</p>
+						</div>
+					) : initialInsightsError ? (
+						<div className='text-center py-8 text-gray-500'>
+							<p>There was an error analyzing your expense.</p>
+							<p className='mt-2 text-sm text-red-500'>
+								{initialInsightsError.message}
 							</p>
 						</div>
 					) : (
 						<div className='space-y-4'>
 							<h3 className='font-semibold text-lg'>Generated Insights:</h3>
-							<ul className='space-y-2'>
+							<ul className='space-y-2 p-0'>
 								{insights.map((insight, index) => (
 									<li
 										key={index}
-										className='p-3 bg-blue-50 dark:bg-blue-950/50 rounded-md flex'>
-										<span className='text-blue-600 dark:text-blue-400 mr-2'>
-											💡
-										</span>
-										<span className='text-gray-800 dark:text-gray-200'>
-											{insight}
-										</span>
+										className='p-3 bg-blue-50 rounded-md flex'>
+										<span className='text-blue-600'>💡</span>
+										<span className='text-gray-800'>{insight}</span>
 									</li>
 								))}
 							</ul>
@@ -199,9 +224,9 @@ export default function ExpenseAiInsight({
 								<h3 className='font-semibold text-lg mb-2'>
 									Ask about this expense:
 								</h3>
-								<div className='bg-gray-50 dark:bg-gray-900 p-4 rounded-md max-h-60 overflow-auto mb-3'>
+								<div className='bg-gray-50 p-4 rounded-md max-h-60 overflow-auto mb-3'>
 									{conversation.length === 0 ? (
-										<p className='text-gray-500 dark:text-gray-400 italic'>
+										<p className='text-gray-500 italic'>
 											Ask questions like "How does this compare to my other
 											expenses?" or "Is this a normal amount to spend on{' '}
 											{expense.category}?"
@@ -219,13 +244,45 @@ export default function ExpenseAiInsight({
 													<div
 														className={`max-w-[80%] p-3 rounded-lg ${
 															message.role === 'user'
-																? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-																: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+																? 'bg-blue-100 text-blue-800'
+																: 'bg-gray-100 text-gray-800'
 														}`}>
 														{message.content}
 													</div>
 												</div>
 											))}
+
+											{/* Show loading state for question */}
+											{questionLoading && (
+												<div className='flex justify-start'>
+													<div className='max-w-[80%] p-3 rounded-lg bg-gray-100'>
+														<div className='flex items-center space-x-2'>
+															<div
+																className='w-2 h-2 bg-gray-400 rounded-full animate-bounce'
+																style={{ animationDelay: '0ms' }}></div>
+															<div
+																className='w-2 h-2 bg-gray-400 rounded-full animate-bounce'
+																style={{ animationDelay: '150ms' }}></div>
+															<div
+																className='w-2 h-2 bg-gray-400 rounded-full animate-bounce'
+																style={{ animationDelay: '300ms' }}></div>
+														</div>
+													</div>
+												</div>
+											)}
+
+											{/* Show error message if asking question fails */}
+											{questionError &&
+												!questionLoading &&
+												conversation[conversation.length - 1].role ===
+													'user' && (
+													<div className='flex justify-start'>
+														<div className='max-w-[80%] p-3 rounded-lg bg-red-100 text-red-800'>
+															Sorry, I couldn't process your question.{' '}
+															{questionError.message}
+														</div>
+													</div>
+												)}
 										</div>
 									)}
 								</div>
@@ -236,15 +293,21 @@ export default function ExpenseAiInsight({
 										type='text'
 										value={userQuestion}
 										onChange={(e) => setUserQuestion(e.target.value)}
-										className='flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-l-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-										placeholder='Ask a question about this expense...'
-										disabled={isAskingQuestion}
+										className='flex-grow p-2 border border-gray-300 rounded-l-md bg-white text-gray-900'
+										placeholder={
+											isRateLimited
+												? 'Rate limit reached. Try again later.'
+												: 'Ask a question about this expense...'
+										}
+										disabled={questionLoading || isRateLimited}
 									/>
 									<button
 										type='submit'
-										disabled={isAskingQuestion || !userQuestion.trim()}
-										className='px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-r-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-blue-300 dark:disabled:bg-blue-800 disabled:cursor-not-allowed'>
-										{isAskingQuestion ? '...' : 'Ask'}
+										disabled={
+											questionLoading || !userQuestion.trim() || isRateLimited
+										}
+										className='px-4 py-2 bg-blue-600 text-white border-none rounded-r-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed'>
+										{questionLoading ? '...' : 'Ask'}
 									</button>
 								</form>
 							</div>

@@ -45,11 +45,11 @@ export default function InviteMemberButton({
 
 	return (
 		<>
-			<button
+			<div
 				onClick={() => setIsOpen(true)}
-				className='text-sm text-blue-600 hover:text-blue-800'>
+				className='text-md font-bold text-blue-400 hover:text-blue-600 cursor-pointer'>
 				+ Invite Member
-			</button>
+			</div>
 
 			{isOpen && (
 				<div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>

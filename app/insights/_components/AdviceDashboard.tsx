@@ -51,7 +51,17 @@ export default function AdviceDashboard({
 		const loadRecommendations = async () => {
 			try {
 				const response = await axios.get('/api/advice');
-				setRecommendations(response.data.recommendations);
+
+				if (
+					response.data.recommendations &&
+					response.data.recommendations.length > 0
+				) {
+					setRecommendations(response.data.recommendations);
+				} else {
+					// If no recommendations are returned, force a refresh to generate some
+					const refreshResponse = await axios.get('/api/advice?refresh=true');
+					setRecommendations(refreshResponse.data.recommendations || []);
+				}
 			} catch (error) {
 				console.error('Failed to fetch recommendations:', error);
 			} finally {
@@ -132,8 +142,8 @@ export default function AdviceDashboard({
 	return (
 		<div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
 			{/* Monthly Spending Chart */}
-			<div className='bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md'>
-				<h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>
+			<div className='bg-gray-200 p-6 rounded-lg shadow-md'>
+				<h2 className='text-xl font-semibold mb-4 text-gray-900'>
 					Monthly Spending
 				</h2>
 				<div className='h-80'>
@@ -152,29 +162,31 @@ export default function AdviceDashboard({
 								angle={-45}
 								textAnchor='end'
 								height={60}
-								tick={{ fill: theme === 'dark' ? '#D1D5DB' : '#1F2937' }}
+								fill='#1F2937'
 							/>
 							<YAxis
 								tickFormatter={(value) => `$${value}`}
 								label={{
 									value: 'Amount ($)',
 									angle: -90,
-									position: 'insideLeft',
-									fill: theme === 'dark' ? '#D1D5DB' : '#1F2937',
+									position: 'left',
+									fill: '#1F293760',
 								}}
-								tick={{ fill: theme === 'dark' ? '#D1D5DB' : '#1F2937' }}
+								tick={{
+									fill: '#1F2937',
+								}}
 							/>
 							<Tooltip
-								formatter={(value) => [`$${value}`, 'Total']}
+								formatter={(value) => [`$${value.toFixed(2)}`, 'Total']}
 								contentStyle={{
-									backgroundColor: theme === 'dark' ? '#374151' : '#F9FAFB',
+									backgroundColor: '#F9FAFB',
 									border: '1px solid #6B7280',
-									color: theme === 'dark' ? '#F3F4F6' : '#111827',
+									color: '#111827',
 								}}
 							/>
 							<Bar
 								dataKey='total'
-								fill={theme === 'dark' ? '#3B82F6' : '#2563EB'}
+								fill='#2563EB'
 								name='Amount'
 							/>
 						</BarChart>
@@ -183,8 +195,8 @@ export default function AdviceDashboard({
 			</div>
 
 			{/* Spending by Category */}
-			<div className='bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md'>
-				<h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>
+			<div className='bg-gray-200 p-6 rounded-lg shadow-md'>
+				<h2 className='text-xl font-semibold mb-4 text-gray-900'>
 					Spending by Category
 				</h2>
 				<div className='h-80'>
@@ -213,17 +225,14 @@ export default function AdviceDashboard({
 							<Tooltip
 								formatter={(value) => [`$${value}`, 'Amount']}
 								contentStyle={{
-									backgroundColor: theme === 'dark' ? '#374151' : '#F9FAFB',
+									backgroundColor: '#F9FAFB',
 									border: '1px solid #6B7280',
-									color: theme === 'dark' ? '#F3F4F6' : '#111827',
+									color: '#111827',
 								}}
 							/>
 							<Legend
 								formatter={(value) => (
-									<span
-										style={{ color: theme === 'dark' ? '#D1D5DB' : '#1F2937' }}>
-										{value}
-									</span>
+									<span style={{ color: '#1F2937' }}>{value}</span>
 								)}
 							/>
 						</PieChart>
@@ -232,16 +241,16 @@ export default function AdviceDashboard({
 			</div>
 
 			{/* Spending Insights */}
-			<div className='bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md'>
-				<h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>
+			<div className='bg-gray-200 p-6 rounded-lg shadow-md'>
+				<h2 className='text-xl font-semibold mb-4 text-gray-900'>
 					Spending Insights
 				</h2>
 				<SpendingInsights expenses={expenses} />
 			</div>
 
 			{/* AI Recommendations */}
-			<div className='bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md'>
-				<h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>
+			<div className='bg-gray-200 p-6 rounded-lg shadow-md'>
+				<h2 className='text-xl font-semibold mb-4 text-gray-900'>
 					Recommendations
 				</h2>
 				<AiRecommendations

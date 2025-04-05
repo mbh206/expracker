@@ -54,7 +54,42 @@ export const authOptions: AuthOptions = {
 	session: {
 		strategy: 'jwt',
 	},
+	callbacks: {
+		// Include user.id in session
+		async session({ session, token, user }) {
+			if (session?.user) {
+				// When using JWT strategy, user comes from token
+				if (token.sub) {
+					session.user.id = token.sub;
+				}
+				// When not using JWT or as a fallback
+				else if (user?.id) {
+					session.user.id = user.id;
+				}
+			}
+			return session;
+		},
+		// Store the user id in the token
+		async jwt({ token, user }) {
+			if (user) {
+				token.id = user.id;
+			}
+			return token;
+		},
+	},
 	secret: process.env.NEXTAUTH_SECRET,
 };
+
+// Add TypeScript declaration for session user to include id
+declare module 'next-auth' {
+	interface Session {
+		user: {
+			id?: string;
+			name?: string | null;
+			email?: string | null;
+			image?: string | null;
+		};
+	}
+}
 
 export default NextAuth(authOptions);

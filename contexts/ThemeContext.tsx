@@ -10,7 +10,7 @@ interface ThemeContextType {
 	toggleTheme: () => void;
 }
 
-// Create context with a default value to avoid the undefined check
+// Create context with a default value
 const ThemeContext = createContext<ThemeContextType>({
 	theme: 'light',
 	toggleTheme: () => {},
@@ -23,11 +23,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 	// On mount, read the theme from localStorage or system preference
 	useEffect(() => {
 		setMounted(true);
-		const savedTheme = localStorage.getItem('theme') as Theme | null;
-		const prefersDark = window.matchMedia(
-			'(prefers-color-scheme: dark)'
-		).matches;
 
+		// Check for saved theme in localStorage
+		const savedTheme = localStorage.getItem('theme') as Theme | null;
+
+		// Check for system preference
+		const prefersDark =
+			typeof window !== 'undefined' &&
+			window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+		// Set initial theme
 		if (savedTheme) {
 			setTheme(savedTheme);
 		} else if (prefersDark) {
@@ -40,19 +45,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 		if (!mounted) return;
 
 		const root = window.document.documentElement;
-		root.classList.remove('light', 'dark');
-		root.classList.add(theme);
+
+		if (theme === 'dark') {
+			root.classList.add('dark');
+		} else {
+			root.classList.remove('dark');
+		}
+
 		localStorage.setItem('theme', theme);
 	}, [theme, mounted]);
 
 	const toggleTheme = () => {
 		setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
 	};
-
-	// Don't render content until mounted to prevent flash
-	if (!mounted) {
-		return <>{children}</>;
-	}
 
 	return (
 		<ThemeContext.Provider value={{ theme, toggleTheme }}>

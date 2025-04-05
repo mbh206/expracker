@@ -11,21 +11,29 @@ datasource db {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  name            String?
-  email           String    @unique
-  emailVerified   DateTime?
-  image           String?
-  password        String?
-  resetToken      String?   @unique
-  resetTokenExpiry DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  name              String?
+  email             String    @unique
+  emailVerified     DateTime?
+  image             String?
+  // Add these new fields:
+  imagePublicId     String?
+  password          String?
+  resetToken        String?   @unique
+  resetTokenExpiry  DateTime?
+  lastUsernameChange DateTime?
+  bio               String?   @db.Text
+  location          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  accounts        Account[]
-  sessions        Session[]
-  expenses        Expense[]
-  households      HouseholdMember[]
+  // Existing relations
+  accounts          Account[]
+  sessions          Session[]
+  expenses          Expense[]
+  households        HouseholdMember[]
+  // Add this relation if you've also added the AIAdvice model
+  aiAdvice          AIAdvice[]
 }
 
 model Account {

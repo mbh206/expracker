@@ -41,12 +41,12 @@ export default function HouseholdsList({
 			{households.map((household) => (
 				<div
 					key={household.id}
-					className='bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow'>
-					<div className='p-6'>
-						<h2 className='text-xl font-bold mb-2 truncate'>
+					className='bg-gray-200 text-gray-600 rounded-lg shadow-sm overflow-hidden hover:shadow-lg transition-shadow'>
+					<div className='px-4 py-2'>
+						<h2 className='text-xl font-bold mb-1 truncate'>
 							{household.name}
 						</h2>
-						<div className='text-sm text-gray-500 mb-4'>
+						<div className='text-sm text-gray-400 mb-4'>
 							Created {formatDate(household.createdAt)}
 						</div>
 

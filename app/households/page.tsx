@@ -60,7 +60,7 @@ export default async function HouseholdsPage() {
 			</div>
 
 			{households.length === 0 ? (
-				<div className='bg-white p-8 rounded-lg shadow-md text-center'>
+				<div className='p-8 rounded-lg shadow-md text-center'>
 					<h2 className='text-xl font-semibold mb-4'>No households yet</h2>
 					<p className='text-gray-600 mb-6'>
 						Create a household to start sharing expenses with family or friends.

@@ -2,13 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth';
 import prisma from '../../../lib/prismadb';
 import { authOptions } from '../auth/[...nextauth]';
-import {
-	format,
-	parseISO,
-	startOfMonth,
-	endOfMonth,
-	subMonths,
-} from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 export default async function handler(
 	req: NextApiRequest,
@@ -39,6 +33,8 @@ export default async function handler(
 	// GET /api/advice - Get AI financial advice
 	if (req.method === 'GET') {
 		try {
+			const isRefresh = req.query.refresh === 'true';
+
 			// Get user's expenses
 			const expenses = await prisma.expense.findMany({
 				where: {
@@ -51,15 +47,98 @@ export default async function handler(
 
 			if (expenses.length < 5) {
 				return res.status(200).json({
-					recommendations: [],
-					message: 'Not enough data to provide advice yet.',
+					recommendations: [
+						'Consider using a 50/30/20 budget: 50% of income for needs, 30% for wants, and 20% for savings.',
+						'Track your expenses consistently to identify spending patterns and areas for improvement.',
+						'Build an emergency fund that covers 3-6 months of essential expenses.',
+						"Review your subscriptions regularly and cancel those you don't use frequently.",
+						'Try the 24-hour rule for non-essential purchases to reduce impulse spending.',
+					],
+					isDemo: true,
 				});
 			}
 
-			// Generate recommendations based on spending patterns
-			const recommendations = await generateRecommendations(expenses);
+			// Generate insights using the LLM
+			try {
+				// Gather data for LLM analysis
+				const analysisData = await gatherDataForAnalysis(expenses, userId);
 
-			return res.status(200).json({ recommendations });
+				// Structure the prompt for the LLM
+				const messages = [
+					{
+						role: 'system',
+						content: `You are a helpful financial advisor AI that analyzes expense data to provide actionable financial insights and recommendations.
+            Your recommendations should be specific, practical, and based on the spending patterns you observe in the data.
+            Format each recommendation as a separate insight. Focus on patterns, opportunities for savings, unusual spending, and budget optimizations.
+            Make each recommendation specific, actionable, and focused on one aspect of financial behavior.`,
+					},
+					{
+						role: 'user',
+						content: `Here is the user's expense data:
+            ${JSON.stringify(analysisData, null, 2)}
+
+            Please provide 5-8 personalized financial recommendations based on this spending data.
+            Make each recommendation specific, actionable, and insightful.
+            Each recommendation should focus on a different aspect of the user's financial behavior.`,
+					},
+				];
+
+				// Call the Groq API
+				const response = await fetch(
+					'https://api.groq.com/openai/v1/chat/completions',
+					{
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+						},
+						body: JSON.stringify({
+							model: 'llama-3.1-8b-instant',
+							messages: messages,
+							temperature: 0.7,
+							max_tokens: 800,
+							stream: false,
+						}),
+					}
+				);
+
+				const responseData = await response.json();
+
+				if (responseData.error) {
+					console.error('LLM API error:', responseData.error);
+					throw new Error('LLM request failed');
+				}
+
+				// Extract recommendations from LLM response
+				const llmResponse = responseData.choices[0].message.content;
+
+				// Parse LLM response into separate recommendations
+				let recommendations = [];
+
+				// Using regex to find numbered patterns or bullet points
+				const recRegex =
+					/(?:\d+\.\s|\-\s|\*\s)(.*?)(?=(?:\d+\.\s|\-\s|\*\s|$))/gs;
+				const matches = [...llmResponse.matchAll(recRegex)];
+
+				if (matches.length > 0) {
+					recommendations = matches.map((match) => match[1].trim());
+				} else {
+					// If no pattern matches, split by double newlines
+					recommendations = llmResponse
+						.split(/\n\n+/)
+						.filter((r) => r.trim().length > 0);
+				}
+
+				return res.status(200).json({ recommendations });
+			} catch (llmError) {
+				console.error('LLM processing error:', llmError);
+				// Fall back to basic recommendations if LLM fails
+				const fallbackRecommendations =
+					generateFallbackRecommendations(expenses);
+				return res
+					.status(200)
+					.json({ recommendations: fallbackRecommendations });
+			}
 		} catch (error) {
 			console.error('Error generating advice:', error);
 			return res.status(500).json({ error: 'Failed to generate advice' });
@@ -70,15 +149,18 @@ export default async function handler(
 	return res.status(405).json({ error: 'Method not allowed' });
 }
 
-async function generateRecommendations(expenses: any[]): Promise<string[]> {
+// Gather necessary data for LLM analysis
+async function gatherDataForAnalysis(expenses, userId) {
 	// Calculate monthly totals
-	const monthlyTotals: Record<string, number> = {};
-	const categoryTotals: Record<string, number> = {};
-	const categoryMonthlyAverages: Record<string, Record<string, number>> = {};
+	const monthlyTotals = {};
+	const categoryTotals = {};
+	const dateCounts = {};
+	const expenseData = [];
 
 	expenses.forEach((expense) => {
 		const date = new Date(expense.date);
 		const month = format(date, 'yyyy-MM');
+		const day = format(date, 'EEEE'); // Day of week
 
 		// Monthly totals
 		if (!monthlyTotals[month]) {
@@ -92,242 +174,160 @@ async function generateRecommendations(expenses: any[]): Promise<string[]> {
 		}
 		categoryTotals[expense.category] += expense.amount;
 
-		// Category by month
-		if (!categoryMonthlyAverages[month]) {
-			categoryMonthlyAverages[month] = {};
+		// Day of week patterns
+		if (!dateCounts[day]) {
+			dateCounts[day] = { count: 0, total: 0 };
 		}
-		if (!categoryMonthlyAverages[month][expense.category]) {
-			categoryMonthlyAverages[month][expense.category] = 0;
-		}
-		categoryMonthlyAverages[month][expense.category] += expense.amount;
+		dateCounts[day].count++;
+		dateCounts[day].total += expense.amount;
+
+		// Add expense to data
+		expenseData.push({
+			category: expense.category,
+			description: expense.description,
+			amount: expense.amount,
+			date: format(date, 'yyyy-MM-dd'),
+			day: day,
+		});
 	});
 
-	// Sort months for trend analysis
-	const sortedMonths = Object.keys(monthlyTotals).sort();
+	// Recent expenses (last 10)
+	const recentExpenses = expenseData.slice(0, 10);
 
-	// Total spent
+	// Get recurring expenses
+	const recurringExpenses = findRecurringExpenses(expenseData);
+
+	// Calculate total spent
 	const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
-	// Get top spending categories
-	const sortedCategories = Object.entries(categoryTotals)
-		.sort((a, b) => b[1] - a[1])
-		.map(([category, total]) => ({ category, total }));
-
-	// Calculate month-over-month changes
-	const monthlyChanges: Record<string, { amount: number; percentage: number }> =
-		{};
-	for (let i = 1; i < sortedMonths.length; i++) {
-		const currentMonth = sortedMonths[i];
-		const previousMonth = sortedMonths[i - 1];
-
-		const change = monthlyTotals[currentMonth] - monthlyTotals[previousMonth];
-		const percentage =
-			monthlyTotals[previousMonth] > 0
-				? (change / monthlyTotals[previousMonth]) * 100
-				: 0;
-
-		monthlyChanges[currentMonth] = {
-			amount: change,
-			percentage,
-		};
-	}
-
-	// Generate recommendations
-	const recommendations: string[] = [];
-
-	// 1. General spending trend
-	if (sortedMonths.length >= 2) {
-		const lastMonth = sortedMonths[sortedMonths.length - 1];
-		const lastMonthChange = monthlyChanges[lastMonth];
-
-		if (lastMonthChange) {
-			if (lastMonthChange.percentage > 15) {
-				recommendations.push(
-					`Your spending increased by ${lastMonthChange.percentage.toFixed(
-						1
-					)}% compared to the previous month. Try to identify non-essential expenses that could be reduced.`
-				);
-			} else if (lastMonthChange.percentage < -15) {
-				recommendations.push(
-					`Great job! You decreased your spending by ${Math.abs(
-						lastMonthChange.percentage
-					).toFixed(1)}% compared to the previous month. Keep up the good work!`
-				);
-			}
-		}
-	}
-
-	// 2. Category-specific advice
-	if (sortedCategories.length > 0) {
-		const topCategory = sortedCategories[0];
-		const totalPercentage = (topCategory.total / totalSpent) * 100;
-
-		if (totalPercentage > 40) {
-			recommendations.push(
-				`${topCategory.category} accounts for ${totalPercentage.toFixed(
-					1
-				)}% of your total expenses. Consider if you can reduce spending in this category or balance your budget better.`
-			);
-		}
-
-		// Check for unusual spending in specific categories
-		const lastMonth = sortedMonths[sortedMonths.length - 1];
-		if (lastMonth && Object.keys(categoryMonthlyAverages).length >= 2) {
-			for (const category of Object.keys(categoryTotals)) {
-				// Skip categories with low spending
-				if (categoryTotals[category] < 100) continue;
-
-				let categoryAvg = 0;
-				let monthCount = 0;
-
-				// Calculate average for this category (excluding the last month)
-				for (let i = 0; i < sortedMonths.length - 1; i++) {
-					const month = sortedMonths[i];
-					if (
-						categoryMonthlyAverages[month] &&
-						categoryMonthlyAverages[month][category]
-					) {
-						categoryAvg += categoryMonthlyAverages[month][category];
-						monthCount++;
-					}
-				}
-
-				if (monthCount > 0) {
-					categoryAvg /= monthCount;
-
-					// Check if last month's spending in this category was much higher than average
-					const lastMonthCategorySpend =
-						categoryMonthlyAverages[lastMonth][category] || 0;
-					if (
-						lastMonthCategorySpend > categoryAvg * 1.5 &&
-						lastMonthCategorySpend > 200
-					) {
-						const percentIncrease =
-							(lastMonthCategorySpend / categoryAvg - 1) * 100;
-						recommendations.push(
-							`Your ${category} spending increased by ${percentIncrease.toFixed(
-								1
-							)}% compared to your average. Look for ways to bring this back in line with your normal spending.`
-						);
-					}
-				}
-			}
-		}
-	}
-
-	// 3. Savings recommendation
-	const totalMonths = sortedMonths.length;
-	if (totalMonths > 0) {
-		const monthlyAverage = totalSpent / totalMonths;
-		const savingsTarget = monthlyAverage * 0.15;
-
-		recommendations.push(
-			`Based on your average monthly spending of ${monthlyAverage.toFixed(
-				2
-			)}, consider setting aside ${savingsTarget.toFixed(
-				2
-			)} each month for savings or emergency fund.`
-		);
-	}
-
-	// 4. Budget distribution advice
-	const recommendedDistribution: Record<string, [number, number]> = {
-		Housing: [25, 35],
-		Transportation: [10, 15],
-		Food: [10, 15],
-		Utilities: [5, 10],
-		Insurance: [10, 15],
-		Debt: [0, 15],
-		Personal: [5, 10],
-		Entertainment: [5, 10],
-		Savings: [15, 20],
-	};
-
-	for (const category of sortedCategories) {
-		const categoryName = category.category;
-		const percentage = (category.total / totalSpent) * 100;
-
-		if (recommendedDistribution[categoryName]) {
-			const [min, max] = recommendedDistribution[categoryName];
-
-			if (percentage > max) {
-				recommendations.push(
-					`Your ${categoryName} expenses (${percentage.toFixed(
-						1
-					)}% of total) are higher than the recommended ${max}%. Look for ways to reduce these costs if possible.`
-				);
-			} else if (percentage < min && min > 5) {
-				// Only suggest increasing spending in important categories
-				recommendations.push(
-					`Consider if you're allocating enough for ${categoryName} (${percentage.toFixed(
-						1
-					)}% of total). The recommended range is ${min}-${max}% of your budget.`
-				);
-			}
-		}
-	}
-
-	// 5. Recurring expense detection
-	const potentialSubscriptions = detectRecurringExpenses(expenses);
-	if (potentialSubscriptions.length > 0) {
-		const subscriptionTotal = potentialSubscriptions.reduce(
-			(sum, sub) => sum + sub.amount,
-			0
-		);
-		if (subscriptionTotal > 100) {
-			recommendations.push(
-				`You're spending approximately ${subscriptionTotal.toFixed(
-					2
-				)} monthly on subscriptions and recurring expenses. Review these to ensure you're using all services you pay for.`
-			);
-		}
-	}
-
-	// 6. Generic advice based on spending level
-	if (recommendations.length < 3) {
-		recommendations.push(
-			'Consider using a 50/30/20 budget: 50% of income for needs, 30% for wants, and 20% for savings and debt repayment.'
-		);
-		recommendations.push(
-			'Track your expenses regularly to identify patterns and opportunities for saving.'
-		);
-		recommendations.push(
-			'Set specific financial goals to stay motivated with your budget.'
-		);
-	}
-
-	return recommendations;
-}
-
-function detectRecurringExpenses(
-	expenses: any[]
-): Array<{ description: string; amount: number }> {
-	const recurring: Record<
-		string,
-		{ count: number; amount: number; months: Set<string> }
-	> = {};
-
-	// Group by similar descriptions and amounts
-	expenses.forEach((expense) => {
-		const date = new Date(expense.date);
-		const month = format(date, 'yyyy-MM');
-		const key = expense.description.toLowerCase().trim();
-
-		if (!recurring[key]) {
-			recurring[key] = { count: 0, amount: expense.amount, months: new Set() };
-		}
-
-		recurring[key].count++;
-		recurring[key].months.add(month);
+	// Calculate category percentages
+	const categoryPercentages = {};
+	Object.entries(categoryTotals).forEach(([category, total]) => {
+		categoryPercentages[category] =
+			((total / totalSpent) * 100).toFixed(1) + '%';
 	});
 
-	// Filter potential subscriptions (same description, similar amount, different months)
-	const potentialSubscriptions = Object.entries(recurring)
-		.filter(([_, data]) => data.count >= 2 && data.months.size >= 2)
-		.map(([description, data]) => ({
-			description,
-			amount: data.amount,
+	// Calculate day averages
+	const dayAverages = {};
+	Object.entries(dateCounts).forEach(([day, data]) => {
+		dayAverages[day] = data.total / data.count;
+	});
+
+	return {
+		totalSpent,
+		monthlyTotals,
+		categoryTotals,
+		categoryPercentages,
+		recentExpenses,
+		recurringExpenses,
+		dayAverages,
+		expenseCount: expenses.length,
+	};
+}
+
+// Find recurring expenses (similar description and amount)
+function findRecurringExpenses(expenses) {
+	const descriptionMap = {};
+
+	// Group by description
+	expenses.forEach((expense) => {
+		const key = expense.description.toLowerCase();
+		if (!descriptionMap[key]) {
+			descriptionMap[key] = [];
+		}
+		descriptionMap[key].push(expense);
+	});
+
+	// Filter for recurring expenses (3+ occurrences)
+	return Object.entries(descriptionMap)
+		.filter(([_, items]) => items.length >= 3)
+		.map(([description, items]) => {
+			const total = items.reduce((sum, exp) => sum + exp.amount, 0);
+			const avg = total / items.length;
+			return {
+				description,
+				occurrences: items.length,
+				averageAmount: avg,
+			};
+		})
+		.filter((item) => item.occurrences >= 3); // At least 3 occurrences
+}
+
+// Generate fallback recommendations if LLM fails
+function generateFallbackRecommendations(expenses) {
+	// Calculate category totals
+	const categoryTotals = {};
+	let totalSpent = 0;
+
+	expenses.forEach((expense) => {
+		if (!categoryTotals[expense.category]) {
+			categoryTotals[expense.category] = 0;
+		}
+		categoryTotals[expense.category] += expense.amount;
+		totalSpent += expense.amount;
+	});
+
+	// Sort categories by spending
+	const sortedCategories = Object.entries(categoryTotals)
+		.sort((a, b) => b[1] - a[1])
+		.map(([category, total]) => ({
+			category,
+			total,
+			percentage: ((total / totalSpent) * 100).toFixed(1),
 		}));
 
-	return potentialSubscriptions;
+	const recommendations = [];
+
+	// Add category-specific recommendations
+	if (sortedCategories.length > 0) {
+		const topCategory = sortedCategories[0];
+		if (
+			topCategory.category === 'Housing' &&
+			parseFloat(topCategory.percentage) > 30
+		) {
+			recommendations.push(
+				`Your housing expenses are ${topCategory.percentage}% of your budget. While this is a fixed expense, consider if there are ways to optimize other housing-related costs like utilities or insurance.`
+			);
+		} else if (
+			topCategory.category === 'Food' &&
+			parseFloat(topCategory.percentage) > 15
+		) {
+			recommendations.push(
+				`Food expenses make up ${topCategory.percentage}% of your budget. Consider meal planning, buying in bulk, or reducing dining out to lower this category.`
+			);
+		} else if (parseFloat(topCategory.percentage) > 30) {
+			recommendations.push(
+				`${topCategory.category} is your largest expense category at ${topCategory.percentage}% of your total. Consider ways to reduce spending in this area if possible.`
+			);
+		}
+
+		// Add recommendation for second highest category if it exists
+		if (sortedCategories.length > 1) {
+			const secondCategory = sortedCategories[1];
+			if (parseFloat(secondCategory.percentage) > 15) {
+				recommendations.push(
+					`Your second highest expense category is ${secondCategory.category} at ${secondCategory.percentage}% of your budget. Review these expenses for potential savings.`
+				);
+			}
+		}
+	}
+
+	// Add general recommendations
+	recommendations.push(
+		'Consider using a 50/30/20 budget: 50% for needs, 30% for wants, 20% for savings.'
+	);
+	recommendations.push(
+		"Review your recurring subscriptions monthly and cancel those you don't use regularly."
+	);
+	recommendations.push(
+		'Build an emergency fund with 3-6 months of essential expenses.'
+	);
+	recommendations.push(
+		'Track your expenses consistently to identify spending patterns and saving opportunities.'
+	);
+	recommendations.push(
+		'For non-essential purchases, try waiting 24 hours before buying to reduce impulse spending.'
+	);
+
+	return recommendations;
 }

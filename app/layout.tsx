@@ -3,13 +3,13 @@ import './globals.css';
 import type { Metadata } from 'next';
 import AuthProvider from '@/providers/AuthProvider';
 import Navbar from '@/components/Navbar';
-import ClientThemeProvider from '../components/ClientThemeProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-	title: 'Family Expense Tracker',
-	description: 'Track, share, and get AI advice on your family expenses',
+	title: 'Expense Tracker',
+	description: 'Track, share, and get AI advice on your personal expenses',
+	viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 };
 
 export default function RootLayout({
@@ -18,16 +18,12 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html
-			lang='en'
-			className='light'>
+		<html lang='en'>
 			<body
-				className={`${inter.className} min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200`}>
+				className={`${inter.className} min-h-screen bg-gray-50 text-gray-900 transition-colors duration-200 overflow-x-hidden`}>
 				<AuthProvider>
-					<ClientThemeProvider>
-						<Navbar />
-						<main className='container mx-auto px-4 py-8'>{children}</main>
-					</ClientThemeProvider>
+					<Navbar />
+					<main className='px-2 py-6 max-w-full'>{children}</main>
 				</AuthProvider>
 			</body>
 		</html>

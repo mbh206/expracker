@@ -89,26 +89,26 @@ export default function HouseholdTabs({
 	);
 
 	return (
-		<div className='bg-white rounded-lg shadow-md overflow-hidden'>
+		<div className='bg-gray-700 rounded-lg shadow-md overflow-hidden'>
 			<div className='flex border-b'>
-				<button
+				<div
 					onClick={() => setActiveTab('expenses')}
 					className={`flex-1 py-4 px-6 text-center font-medium ${
 						activeTab === 'expenses'
-							? 'text-blue-600 border-b-2 border-blue-600'
-							: 'text-gray-500 hover:text-gray-700'
+							? 'bg-gray-600 text-blue-300'
+							: 'text-gray-500 hover:text-gray-400'
 					}`}>
 					Expenses
-				</button>
-				<button
+				</div>
+				<div
 					onClick={() => setActiveTab('summary')}
 					className={`flex-1 py-4 px-6 text-center font-medium ${
 						activeTab === 'summary'
-							? 'text-blue-600 border-b-2 border-blue-600'
-							: 'text-gray-500 hover:text-gray-700'
+							? 'bg-gray-600 text-blue-300'
+							: 'text-gray-500 hover:text-gray-400'
 					}`}>
 					Summary
-				</button>
+				</div>
 			</div>
 
 			<div className='p-6'>
@@ -138,49 +138,49 @@ export default function HouseholdTabs({
 						) : (
 							<div className='overflow-x-auto'>
 								<table className='min-w-full divide-y divide-gray-200'>
-									<thead className='bg-gray-50'>
+									<thead className='bg-gray-500 '>
 										<tr>
 											<th
 												scope='col'
-												className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+												className='px-6 py-3 text-left text-xs font-medium text-gray-100 uppercase tracking-wider'>
 												Date
 											</th>
 											<th
 												scope='col'
-												className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+												className='px-6 py-3 text-left text-xs font-medium text-gray-100 uppercase tracking-wider'>
 												Description
 											</th>
 											<th
 												scope='col'
-												className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+												className='px-6 py-3 text-left text-xs font-medium text-gray-100 uppercase tracking-wider'>
 												Category
 											</th>
 											<th
 												scope='col'
-												className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+												className='px-6 py-3 text-left text-xs font-medium text-gray-100 uppercase tracking-wider'>
 												Added By
 											</th>
 											<th
 												scope='col'
-												className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+												className='px-6 py-3 text-left text-xs font-medium text-gray-100 uppercase tracking-wider'>
 												Amount
 											</th>
 											<th
 												scope='col'
-												className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
+												className='px-6 py-3 text-right text-xs font-medium text-gray-100 uppercase tracking-wider'>
 												Actions
 											</th>
 										</tr>
 									</thead>
-									<tbody className='bg-white divide-y divide-gray-200'>
+									<tbody className='bg-gray-600 divide-y divide-gray-200'>
 										{formattedExpenses.map((expense) => (
 											<tr
 												key={expense.id}
-												className='hover:bg-gray-50'>
-												<td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
+												className='hover:bg-gray-700'>
+												<td className='px-6 py-4 whitespace-nowrap text-sm text-gray-100'>
 													{expense.formattedDate}
 												</td>
-												<td className='px-6 py-4 text-sm text-gray-900'>
+												<td className='px-6 py-4 text-sm text-gray-100'>
 													{expense.description}
 												</td>
 												<td className='px-6 py-4 whitespace-nowrap'>
@@ -191,16 +191,16 @@ export default function HouseholdTabs({
 														{expense.category}
 													</span>
 												</td>
-												<td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
+												<td className='px-6 py-4 whitespace-nowrap text-sm text-gray-100'>
 													{expense.userName}
 												</td>
-												<td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
+												<td className='px-6 py-4 whitespace-nowrap text-sm text-gray-100'>
 													${expense.amount.toFixed(2)}
 												</td>
 												<td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
 													<Link
 														href={`/expenses/${expense.id}`}
-														className='text-blue-600 hover:text-blue-900'>
+														className='text-blue-200 hover:text-blue-100'>
 														View
 													</Link>
 												</td>
@@ -218,7 +218,7 @@ export default function HouseholdTabs({
 						<h3 className='text-lg font-semibold mb-4'>Expense Summary</h3>
 
 						<div className='bg-blue-50 p-4 rounded-md mb-6'>
-							<div className='text-lg font-semibold'>
+							<div className='text-gray-500 text-lg font-semibold'>
 								Total Expenses: ${totalAmount.toFixed(2)}
 							</div>
 							<div className='text-sm text-gray-600'>
@@ -240,7 +240,7 @@ export default function HouseholdTabs({
 													className={`inline-block w-3 h-3 rounded-full mr-2 ${
 														getCategoryColor(category).split(' ')[0]
 													}`}></span>
-												<span>
+												<span className='text-gray-500'>
 													{category}{' '}
 													<span className='text-gray-500 text-sm'>
 														({data.count})
@@ -262,7 +262,7 @@ export default function HouseholdTabs({
 										<div
 											key={userId}
 											className='flex justify-between items-center p-3 bg-gray-50 rounded-md'>
-											<div>
+											<div className='text-gray-500'>
 												{data.name}{' '}
 												<span className='text-gray-500 text-sm'>
 													({data.count})
