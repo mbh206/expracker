@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,46 +8,40 @@ datasource db {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  name              String?
-  email             String    @unique
-  emailVerified     DateTime?
-  image             String?
-  // Add these new fields:
-  imagePublicId     String?
-  password          String?
-  resetToken        String?   @unique
-  resetTokenExpiry  DateTime?
+  id                 String            @id @default(cuid())
+  name               String?
+  email              String            @unique
+  emailVerified      DateTime?
+  image              String?
+  imagePublicId      String?
+  password           String?
+  resetToken         String?           @unique
+  resetTokenExpiry   DateTime?
   lastUsernameChange DateTime?
-  bio               String?   @db.Text
-  location          String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Existing relations
-  accounts          Account[]
-  sessions          Session[]
-  expenses          Expense[]
-  households        HouseholdMember[]
-  // Add this relation if you've also added the AIAdvice model
-  aiAdvice          AIAdvice[]
+  bio                String?
+  location           String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  accounts           Account[]
+  expenses           Expense[]
+  households         HouseholdMember[]
+  sessions           Session[]
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  @db.Text
-  access_token       String?  @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?  @db.Text
-  session_state      String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -72,37 +63,36 @@ model VerificationToken {
 }
 
 model Expense {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   amount      Float
   description String
   date        DateTime
   category    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  isRecurring Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   householdId String?
   household   Household? @relation(fields: [householdId], references: [id])
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Household {
-  id          String   @id @default(cuid())
-  name        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  members     HouseholdMember[]
-  expenses    Expense[]
+  id        String            @id @default(cuid())
+  name      String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  expenses  Expense[]
+  members   HouseholdMember[]
 }
 
 model HouseholdMember {
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   householdId String
+  role        String    @default("member")
+  joinedAt    DateTime  @default(now())
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  role        String   @default("member") // "admin" or "member"
-  joinedAt    DateTime @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, householdId])
 }

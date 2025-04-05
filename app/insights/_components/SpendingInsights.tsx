@@ -1,27 +1,51 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import {
+	Chart as ChartJS,
+	ArcElement,
+	Tooltip,
+	Legend,
+	CategoryScale,
+	LinearScale,
+	BarElement,
+	Title,
+} from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
 
-interface Expense {
-	id: string;
-	amount: number;
-	description: string;
-	date: string | Date;
+ChartJS.register(
+	ArcElement,
+	CategoryScale,
+	LinearScale,
+	BarElement,
+	Title,
+	Tooltip,
+	Legend
+);
+
+interface CategoryData {
 	category: string;
-	userId: string;
-	householdId: string | null;
+	amount: number;
+}
+
+interface MonthlyData {
+	month: string;
+	amount: number;
 }
 
 interface SpendingInsightsProps {
-	expenses: Expense[];
+	totalSpending: number;
+	topCategories: CategoryData[];
+	monthlyData: MonthlyData[];
 }
 
-export default function SpendingInsights({ expenses }: SpendingInsightsProps) {
+export default function SpendingInsights({
+	totalSpending,
+	topCategories,
+	monthlyData,
+}: SpendingInsightsProps) {
 	const [insights, setInsights] = useState<{
-		totalSpent: number;
 		monthlyAverage: number;
-		topCategory: { name: string; amount: number };
 		biggestExpense: { description: string; amount: number; date: Date };
 		monthOverMonthChange: {
 			amount: number;
@@ -34,222 +58,191 @@ export default function SpendingInsights({ expenses }: SpendingInsightsProps) {
 			percentage: number;
 		} | null;
 	}>({
-		totalSpent: 0,
 		monthlyAverage: 0,
-		topCategory: { name: '', amount: 0 },
 		biggestExpense: { description: '', amount: 0, date: new Date() },
 		monthOverMonthChange: { amount: 0, percentage: 0, increased: false },
 		unusualSpending: null,
 	});
 
 	useEffect(() => {
-		// Process expenses to generate insights
-		if (expenses.length === 0) return;
-
-		// Total spent
-		const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-
-		// Get unique months
-		const monthsSet = new Set<string>();
-		expenses.forEach((exp) => {
-			const expDate = new Date(exp.date);
-			const monthYear = format(expDate, 'yyyy-MM');
-			monthsSet.add(monthYear);
-		});
-		const uniqueMonths = monthsSet.size;
+		// Process data to generate insights
+		if (monthlyData.length === 0) return;
 
 		// Monthly average
-		const monthlyAverage =
-			uniqueMonths > 0 ? totalSpent / uniqueMonths : totalSpent;
-
-		// Top category
-		const categoryTotals: Record<string, number> = {};
-		expenses.forEach((exp) => {
-			if (!categoryTotals[exp.category]) {
-				categoryTotals[exp.category] = 0;
-			}
-			categoryTotals[exp.category] += exp.amount;
-		});
-
-		let topCategory = { name: '', amount: 0 };
-		Object.entries(categoryTotals).forEach(([category, amount]) => {
-			if (amount > topCategory.amount) {
-				topCategory = { name: category, amount };
-			}
-		});
-
-		// Biggest expense
-		let biggestExpense = { description: '', amount: 0, date: new Date() };
-		expenses.forEach((exp) => {
-			if (exp.amount > biggestExpense.amount) {
-				biggestExpense = {
-					description: exp.description,
-					amount: exp.amount,
-					date: new Date(exp.date),
-				};
-			}
-		});
+		const monthlyAverage = totalSpending / monthlyData.length;
 
 		// Month over month change
-		const currentDate = new Date();
-		const currentMonth = startOfMonth(currentDate);
-		const previousMonth = startOfMonth(
-			new Date(currentDate.setMonth(currentDate.getMonth() - 1))
-		);
+		if (monthlyData.length >= 2) {
+			const currentMonth = monthlyData[monthlyData.length - 1];
+			const previousMonth = monthlyData[monthlyData.length - 2];
 
-		const currentMonthExpenses = expenses.filter((exp) =>
-			isSameMonth(new Date(exp.date), currentMonth)
-		);
-		const previousMonthExpenses = expenses.filter((exp) =>
-			isSameMonth(new Date(exp.date), previousMonth)
-		);
+			const amountChange = currentMonth.amount - previousMonth.amount;
+			const percentageChange =
+				previousMonth.amount > 0
+					? (amountChange / previousMonth.amount) * 100
+					: 0;
 
-		const currentMonthTotal = currentMonthExpenses.reduce(
-			(sum, exp) => sum + exp.amount,
-			0
-		);
-		const previousMonthTotal = previousMonthExpenses.reduce(
-			(sum, exp) => sum + exp.amount,
-			0
-		);
-
-		let monthOverMonthChange = { amount: 0, percentage: 0, increased: false };
-
-		if (previousMonthTotal > 0) {
-			const difference = currentMonthTotal - previousMonthTotal;
-			const percentage = (Math.abs(difference) / previousMonthTotal) * 100;
-
-			monthOverMonthChange = {
-				amount: Math.abs(difference),
-				percentage,
-				increased: difference > 0,
-			};
+			setInsights((prev) => ({
+				...prev,
+				monthlyAverage,
+				monthOverMonthChange: {
+					amount: amountChange,
+					percentage: percentageChange,
+					increased: amountChange > 0,
+				},
+			}));
+		} else {
+			setInsights((prev) => ({
+				...prev,
+				monthlyAverage,
+			}));
 		}
 
-		// Detect unusual spending
-		let unusualSpending = null;
-		if (uniqueMonths >= 2) {
-			// Calculate average spending per category per month
-			const categoryMonthlyAverages: Record<string, number> = {};
-			Object.keys(categoryTotals).forEach((category) => {
-				categoryMonthlyAverages[category] =
-					categoryTotals[category] / uniqueMonths;
-			});
+		// Check for unusual spending
+		if (topCategories.length > 0) {
+			const topCategory = topCategories[0];
+			const categoryPercentage = (topCategory.amount / totalSpending) * 100;
 
-			// Check for unusual spending in current month
-			Object.keys(categoryTotals).forEach((category) => {
-				const currentMonthCategoryTotal = currentMonthExpenses
-					.filter((exp) => exp.category === category)
-					.reduce((sum, exp) => sum + exp.amount, 0);
-
-				if (
-					currentMonthCategoryTotal > categoryMonthlyAverages[category] * 1.5 &&
-					currentMonthCategoryTotal > 100
-				) {
-					const percentage =
-						(currentMonthCategoryTotal / categoryMonthlyAverages[category] -
-							1) *
-						100;
-					if (!unusualSpending || percentage > unusualSpending.percentage) {
-						unusualSpending = {
-							category,
-							amount: currentMonthCategoryTotal,
-							percentage,
-						};
-					}
-				}
-			});
+			if (categoryPercentage > 40) {
+				setInsights((prev) => ({
+					...prev,
+					unusualSpending: {
+						category: topCategory.category,
+						amount: topCategory.amount,
+						percentage: categoryPercentage,
+					},
+				}));
+			}
 		}
+	}, [totalSpending, topCategories, monthlyData]);
 
-		setInsights({
-			totalSpent,
-			monthlyAverage,
-			topCategory,
-			biggestExpense,
-			monthOverMonthChange,
-			unusualSpending,
-		});
-	}, [expenses]);
+	// Prepare data for pie chart
+	const pieChartData = {
+		labels: topCategories.map((cat) => cat.category),
+		datasets: [
+			{
+				data: topCategories.map((cat) => cat.amount),
+				backgroundColor: [
+					'#FF6384',
+					'#36A2EB',
+					'#FFCE56',
+					'#4BC0C0',
+					'#9966FF',
+				],
+				hoverBackgroundColor: [
+					'#FF6384',
+					'#36A2EB',
+					'#FFCE56',
+					'#4BC0C0',
+					'#9966FF',
+				],
+			},
+		],
+	};
+
+	// Prepare data for bar chart
+	const barChartData = {
+		labels: monthlyData.map((data) => data.month),
+		datasets: [
+			{
+				label: 'Monthly Spending',
+				data: monthlyData.map((data) => data.amount),
+				backgroundColor: '#36A2EB',
+			},
+		],
+	};
+
+	const barChartOptions = {
+		responsive: true,
+		plugins: {
+			legend: {
+				position: 'top' as const,
+			},
+			title: {
+				display: true,
+				text: 'Monthly Spending Trends',
+			},
+		},
+	};
 
 	return (
-		<div className='space-y-4'>
-			<div className='grid grid-cols-2 gap-4'>
-				<div className='p-4 bg-blue-50 rounded-lg'>
-					<div className='text-sm text-gray-500'>Total Spent</div>
-					<div className='text-xl font-bold text-gray-900'>
-						${insights.totalSpent.toFixed(2)}
-					</div>
+		<div className='bg-white p-6 rounded-lg shadow-md'>
+			<h3 className='text-lg font-semibold mb-4'>Spending Insights</h3>
+
+			<div className='grid grid-cols-1 md:grid-cols-2 gap-6 mb-8'>
+				<div className='h-64'>
+					<h4 className='font-medium mb-2 text-center'>Spending by Category</h4>
+					<Pie data={pieChartData} />
 				</div>
-				<div className='p-4 bg-green-50 rounded-lg'>
-					<div className='text-sm text-gray-500'>Monthly Average</div>
-					<div className='text-xl font-bold text-gray-900'>
-						${insights.monthlyAverage.toFixed(2)}
-					</div>
+				<div className='h-64'>
+					<Bar
+						options={barChartOptions}
+						data={barChartData}
+					/>
 				</div>
 			</div>
 
-			<div className='p-4 bg-gray-50 rounded-lg'>
-				<div className='text-sm text-gray-500'>Top Spending Category</div>
-				<div className='text-xl font-bold text-gray-900'>
-					{insights.topCategory.name}
+			<div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+				<div>
+					<h4 className='font-medium mb-2'>Overview</h4>
+					<ul className='space-y-2'>
+						<li className='flex justify-between'>
+							<span className='text-gray-600'>Total Spending:</span>
+							<span className='font-medium'>${totalSpending.toFixed(2)}</span>
+						</li>
+						<li className='flex justify-between'>
+							<span className='text-gray-600'>Monthly Average:</span>
+							<span className='font-medium'>
+								${insights.monthlyAverage.toFixed(2)}
+							</span>
+						</li>
+
+						{insights.monthOverMonthChange.amount !== 0 && (
+							<li className='flex justify-between'>
+								<span className='text-gray-600'>Month-over-Month Change:</span>
+								<span
+									className={`font-medium ${
+										insights.monthOverMonthChange.increased
+											? 'text-red-500'
+											: 'text-green-500'
+									}`}>
+									{insights.monthOverMonthChange.increased ? '+' : ''}$
+									{Math.abs(insights.monthOverMonthChange.amount).toFixed(2)}(
+									{insights.monthOverMonthChange.increased ? '+' : ''}
+									{insights.monthOverMonthChange.percentage.toFixed(1)}%)
+								</span>
+							</li>
+						)}
+					</ul>
 				</div>
-				<div className='text-sm text-gray-700'>
-					${insights.topCategory.amount.toFixed(2)}
+
+				<div>
+					<h4 className='font-medium mb-2'>Top Categories</h4>
+					<ul className='space-y-2'>
+						{topCategories.slice(0, 3).map((category) => (
+							<li
+								key={category.category}
+								className='flex justify-between'>
+								<span className='text-gray-600'>{category.category}:</span>
+								<span className='font-medium'>
+									${category.amount.toFixed(2)}
+								</span>
+							</li>
+						))}
+					</ul>
+
+					{insights.unusualSpending && (
+						<div className='mt-4 p-3 bg-yellow-50 rounded-md'>
+							<p className='text-sm text-yellow-800'>
+								<strong>Unusual Spending:</strong>{' '}
+								{insights.unusualSpending.category}
+								accounts for {insights.unusualSpending.percentage.toFixed(1)}%
+								of your total spending.
+							</p>
+						</div>
+					)}
 				</div>
 			</div>
-
-			<div className='p-4 bg-gray-50 rounded-lg'>
-				<div className='text-sm text-gray-500'>Biggest Expense</div>
-				<div className='text-xl font-bold text-gray-900 truncate'>
-					{insights.biggestExpense.description}
-				</div>
-				<div className='flex justify-between text-sm text-gray-700'>
-					<span>${insights.biggestExpense.amount.toFixed(2)}</span>
-					<span>{format(insights.biggestExpense.date, 'MMM d, yyyy')}</span>
-				</div>
-			</div>
-
-			{insights.monthOverMonthChange.amount > 0 && (
-				<div
-					className={`p-4 rounded-lg ${
-						insights.monthOverMonthChange.increased
-							? 'bg-red-50'
-							: 'bg-green-50'
-					}`}>
-					<div className='text-sm text-gray-500'>Month-over-Month Change</div>
-					<div className='text-xl font-bold flex items-center'>
-						<span
-							className={
-								insights.monthOverMonthChange.increased
-									? 'text-red-600'
-									: 'text-green-600'
-							}>
-							{insights.monthOverMonthChange.increased ? '↑' : '↓'}{' '}
-							{insights.monthOverMonthChange.percentage.toFixed(1)}%
-						</span>
-					</div>
-					<div className='text-sm text-gray-700'>
-						{insights.monthOverMonthChange.increased
-							? 'Spending increased by'
-							: 'Spending decreased by'}{' '}
-						${insights.monthOverMonthChange.amount.toFixed(2)} compared to last
-						month
-					</div>
-				</div>
-			)}
-
-			{insights.unusualSpending && (
-				<div className='p-4 bg-yellow-50 rounded-lg'>
-					<div className='text-sm text-gray-500'>Unusual Spending Detected</div>
-					<div className='text-xl font-bold text-gray-900'>
-						{insights.unusualSpending.category}
-					</div>
-					<div className='text-sm text-gray-700'>
-						Spending is up {insights.unusualSpending.percentage.toFixed(1)}%
-						compared to your monthly average
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }

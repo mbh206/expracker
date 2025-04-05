@@ -1,11 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { EXPENSE_CATEGORIES, getCategoryColor } from '../../lib/constants';
-import { useTheme } from '@/contexts/ThemeContext';
 
 interface Expense {
 	id: string;
@@ -13,32 +11,53 @@ interface Expense {
 	description: string;
 	date: string | Date;
 	category: string;
+	isRecurring: boolean;
 	createdAt: string | Date;
 	updatedAt: string | Date;
 	userId: string;
 	householdId: string | null;
 }
 
-interface ExpenseListProps {
-	initialExpenses: Expense[];
+interface HouseholdExpense {
+	householdId: string;
+	householdName: string;
+	expenses: Expense[];
 }
 
-export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
-	const router = useRouter();
-	const { theme } = useTheme();
-	const [expenses] = useState<Expense[]>(
-		initialExpenses.map((expense) => ({
-			...expense,
-			date: new Date(expense.date),
-			createdAt: new Date(expense.createdAt),
-			updatedAt: new Date(expense.updatedAt),
-		}))
-	);
+interface ExpenseListProps {
+	expenses: Expense[];
+	userExpenses: Expense[];
+	householdExpenses: HouseholdExpense[];
+}
+
+export default function ExpenseList({
+	expenses: initialExpenses = [],
+	userExpenses = [],
+	householdExpenses = [],
+}: ExpenseListProps) {
+	const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
 	const [searchTerm, setSearchTerm] = useState('');
-	const [categoryFilter, setCategoryFilter] = useState<string>('');
+	const [selectedCategory, setSelectedCategory] = useState<string>('');
 	const [dateFilter, setDateFilter] = useState<string>('all');
-	const [sortBy, setSortBy] = useState<string>('date');
+	const [sortBy, setSortBy] = useState<keyof Expense>('date');
 	const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+	const [selectedView, setSelectedView] = useState<string>('all');
+	const router = useRouter();
+
+	// Update expenses when selected view changes
+	useEffect(() => {
+		if (selectedView === 'all') {
+			setExpenses(initialExpenses);
+		} else if (selectedView === 'personal') {
+			setExpenses(userExpenses);
+		} else {
+			// Find the selected household expenses
+			const selectedHousehold = householdExpenses.find(
+				(h) => h.householdId === selectedView
+			);
+			setExpenses(selectedHousehold?.expenses || []);
+		}
+	}, [selectedView, initialExpenses, userExpenses, householdExpenses]);
 
 	// Filter and sort expenses
 	const filteredExpenses = expenses
@@ -49,8 +68,8 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 				.includes(searchTerm.toLowerCase());
 
 			// Category filter
-			const categoryMatch = categoryFilter
-				? expense.category === categoryFilter
+			const categoryMatch = selectedCategory
+				? expense.category === selectedCategory
 				: true;
 
 			// Date filter
@@ -101,7 +120,7 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 		0
 	);
 
-	const handleSort = (column: string) => {
+	const handleSort = (column: keyof Expense) => {
 		if (sortBy === column) {
 			setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
 		} else {
@@ -112,7 +131,7 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 
 	const clearFilters = () => {
 		setSearchTerm('');
-		setCategoryFilter('');
+		setSelectedCategory('');
 		setDateFilter('all');
 		setSortBy('date');
 		setSortOrder('desc');
@@ -151,7 +170,29 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 							className='p-2 border border-gray-300 rounded-md bg-white text-gray-900'
 						/>
 					</div>
-					<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+					<div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+						<div>
+							<label
+								htmlFor='viewSelector'
+								className='block text-sm font-medium text-gray-700 mb-1'>
+								View
+							</label>
+							<select
+								id='viewSelector'
+								value={selectedView}
+								onChange={(e) => setSelectedView(e.target.value)}
+								className='w-full p-2 border border-gray-300 rounded-md bg-white text-gray-900'>
+								<option value='all'>All Expenses</option>
+								<option value='personal'>My Personal Expenses</option>
+								{householdExpenses.map((household) => (
+									<option
+										key={household.householdId}
+										value={household.householdId}>
+										{household.householdName} Expenses
+									</option>
+								))}
+							</select>
+						</div>
 						<div>
 							<label
 								htmlFor='categoryFilter'
@@ -160,8 +201,8 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 							</label>
 							<select
 								id='categoryFilter'
-								value={categoryFilter}
-								onChange={(e) => setCategoryFilter(e.target.value)}
+								value={selectedCategory}
+								onChange={(e) => setSelectedCategory(e.target.value)}
 								className='w-full p-2 border border-gray-300 rounded-md bg-white text-gray-900'>
 								<option value=''>All Categories</option>
 								{EXPENSE_CATEGORIES.map((category) => (
@@ -214,8 +255,9 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 				<table className='w-full table-fixed border-collapse'>
 					<colgroup>
 						<col className='w-[20%]' />
-						<col className='w-[30%]' />
-						<col className='w-[30%]' />
+						<col className='w-[25%]' />
+						<col className='w-[20%]' />
+						<col className='w-[15%]' />
 						<col className='w-[20%]' />
 					</colgroup>
 					<thead className='bg-gray-50'>
@@ -250,6 +292,11 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 										</span>
 									)}
 								</div>
+							</th>
+							<th
+								scope='col'
+								className='px-2 py-3 text-[.6rem] font-medium text-gray-500 uppercase text-left'>
+								Recurring
 							</th>
 							<th
 								scope='col'
@@ -302,8 +349,21 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
 											{expense.category}
 										</span>
 									</td>
-									<td className='text-[.7rem] sm:text-[1rem] px-2 py-3 text-gray-900 font-medium text-right'>
-										${expense.amount.toFixed(2)}
+									<td className='text-[.7rem] sm:text-[1rem] px-2 py-3 text-left'>
+										{expense.isRecurring ? (
+											<span className='inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800'>
+												Recurring
+											</span>
+										) : (
+											<span className='inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800'>
+												One-time
+											</span>
+										)}
+									</td>
+									<td className='text-[.7rem] sm:text-[1rem] px-2 py-3 text-right'>
+										<div className='text-gray-900'>
+											${expense.amount.toFixed(2)}
+										</div>
 									</td>
 								</tr>
 							))

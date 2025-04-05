@@ -57,13 +57,21 @@ export default function ProfileContent({
 	const router = useRouter();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
+	// Create a user object with default values for potentially missing fields
+	const userWithDefaults = {
+		...user,
+		bio: user.bio || null,
+		location: user.location || null,
+		lastUsernameChange: user.lastUsernameChange || null,
+	};
+
 	// Profile form state
-	const [name, setName] = useState(user.name || '');
-	const [bio, setBio] = useState(user.bio || '');
-	const [location, setLocation] = useState(user.location || '');
+	const [name, setName] = useState(userWithDefaults.name || '');
+	const [bio, setBio] = useState(userWithDefaults.bio || '');
+	const [location, setLocation] = useState(userWithDefaults.location || '');
 	const [imageFile, setImageFile] = useState<File | null>(null);
 	const [imagePreview, setImagePreview] = useState<string | null>(
-		user.image || null
+		userWithDefaults.image || null
 	);
 
 	// UI state
@@ -76,17 +84,18 @@ export default function ProfileContent({
 
 	// Calculate days until username can be changed
 	const canChangeUsername =
-		!user.lastUsernameChange ||
-		new Date().getTime() - new Date(user.lastUsernameChange).getTime() >
+		!userWithDefaults.lastUsernameChange ||
+		new Date().getTime() -
+			new Date(userWithDefaults.lastUsernameChange).getTime() >
 			30 * 24 * 60 * 60 * 1000;
 
-	const daysUntilUsernameChange = user.lastUsernameChange
+	const daysUntilUsernameChange = userWithDefaults.lastUsernameChange
 		? Math.max(
 				0,
 				30 -
 					Math.floor(
 						(new Date().getTime() -
-							new Date(user.lastUsernameChange).getTime()) /
+							new Date(userWithDefaults.lastUsernameChange).getTime()) /
 							(1000 * 60 * 60 * 24)
 					)
 		  )
@@ -156,7 +165,7 @@ export default function ProfileContent({
 			setIsEditing(false);
 
 			// If we changed the name, refresh the page to update the UI
-			if (response.data.name !== user.name) {
+			if (response.data.name !== userWithDefaults.name) {
 				router.refresh();
 			}
 		} catch (error: any) {
@@ -190,7 +199,9 @@ export default function ProfileContent({
 									) : (
 										<div className='w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center'>
 											<span className='text-3xl text-gray-500 font-semibold'>
-												{name?.charAt(0) || user.email?.charAt(0) || 'U'}
+												{name?.charAt(0) ||
+													userWithDefaults.email?.charAt(0) ||
+													'U'}
 											</span>
 										</div>
 									)}
@@ -198,7 +209,7 @@ export default function ProfileContent({
 								<h2 className='text-xl font-semibold mb-1'>
 									{name || 'Unnamed User'}
 								</h2>
-								<p className='text-gray-500 mb-4'>{user.email}</p>
+								<p className='text-gray-500 mb-4'>{userWithDefaults.email}</p>
 
 								{bio && <p className='text-gray-700 mb-3'>{bio}</p>}
 
@@ -228,7 +239,8 @@ export default function ProfileContent({
 								)}
 
 								<p className='text-gray-500 text-sm'>
-									Member since {format(new Date(user.createdAt), 'MMMM yyyy')}
+									Member since{' '}
+									{format(new Date(userWithDefaults.createdAt), 'MMMM yyyy')}
 								</p>
 
 								<button
@@ -275,7 +287,9 @@ export default function ProfileContent({
 										) : (
 											<div className='w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors'>
 												<span className='text-3xl text-gray-500 font-semibold'>
-													{name?.charAt(0) || user.email?.charAt(0) || 'U'}
+													{name?.charAt(0) ||
+														userWithDefaults.email?.charAt(0) ||
+														'U'}
 												</span>
 											</div>
 										)}
@@ -347,10 +361,10 @@ export default function ProfileContent({
 										type='button'
 										onClick={() => {
 											setIsEditing(false);
-											setImagePreview(user.image || null);
-											setName(user.name || '');
-											setBio(user.bio || '');
-											setLocation(user.location || '');
+											setImagePreview(userWithDefaults.image || null);
+											setName(userWithDefaults.name || '');
+											setBio(userWithDefaults.bio || '');
+											setLocation(userWithDefaults.location || '');
 											setError('');
 											setSuccess('');
 										}}

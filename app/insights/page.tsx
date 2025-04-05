@@ -28,8 +28,8 @@ export default async function AdvicePage() {
 		redirect('/login');
 	}
 
-	// Get user's expenses with category information
-	const expenses = await prisma.expense.findMany({
+	// Get all user's expenses (personal + household)
+	const userExpenses = await prisma.expense.findMany({
 		where: {
 			userId: user.id,
 		},
@@ -39,7 +39,7 @@ export default async function AdvicePage() {
 	});
 
 	// Need at least 5 expenses to provide meaningful advice
-	const hasEnoughData = expenses.length >= 5;
+	const hasEnoughData = userExpenses.length >= 5;
 
 	return (
 		<div className='max-w-6xl mx-auto'>
@@ -50,17 +50,17 @@ export default async function AdvicePage() {
 				</p>
 			</div>
 
-			{!hasEnoughData ? (
-				<div className='bg-white p-8 rounded-lg shadow-md text-center'>
+			<AdviceDashboard initialExpenses={userExpenses} />
+
+			{!hasEnoughData && (
+				<div className='bg-white p-8 rounded-lg shadow-md text-center mt-8'>
 					<h2 className='text-xl font-semibold mb-4'>Not Enough Data</h2>
 					<p className='text-gray-600 mb-6'>
 						We need at least 5 expenses to provide meaningful financial
-						insights. Keep tracking your expenses, and we'll have personalized
-						advice for you soon.
+						insights. Keep tracking your expenses, and we&apos;ll have
+						personalized advice for you soon.
 					</p>
 				</div>
-			) : (
-				<AdviceDashboard initialExpenses={expenses} />
 			)}
 		</div>
 	);

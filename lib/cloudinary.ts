@@ -1,5 +1,5 @@
 // lib/cloudinary.ts
-import { v2 as cloudinary } from './cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
 	cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -14,7 +14,7 @@ export const uploadToCloudinary = async (
 	return new Promise((resolve, reject) => {
 		const uploadOptions = {
 			folder,
-			resource_type: 'auto',
+			resource_type: 'auto' as const,
 			unique_filename: true,
 		};
 
@@ -35,6 +35,8 @@ export const deleteFromCloudinary = async (publicId: string): Promise<void> => {
 		await cloudinary.uploader.destroy(publicId);
 	} catch (error) {
 		console.error('Error deleting image from Cloudinary:', error);
+		// Re-throw the error to be handled by the caller
+		throw error;
 	}
 };
 
@@ -48,6 +50,7 @@ export const getPublicIdFromUrl = (url: string): string | null => {
 		const match = url.match(regex);
 		return match ? match[1] : null;
 	} catch (error) {
+		console.error('Error extracting public ID from URL:', error);
 		return null;
 	}
 };

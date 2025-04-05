@@ -9,7 +9,7 @@ export default function DashboardContent() {
 	return (
 		<div className='flex flex-col gap-4'>
 			<div className='flex gap-4 flex-wrap md:flex-nowrap'>
-				<div className='w-full md:w-[48%] bg-gray-200 p-6 rounded-lg shadow-md overflow-hidden'>
+				<div className='w-full md:w-[48%] bg-white p-6 rounded-lg shadow-md overflow-hidden'>
 					<h2 className='text-xl font-semibold mb-4 text-gray-900'>
 						Quick Actions
 					</h2>
@@ -31,7 +31,7 @@ export default function DashboardContent() {
 						</Link>
 					</div>
 				</div>
-				<div className='w-full md:w-[48%] bg-gray-200 p-6 rounded-lg shadow-md'>
+				<div className='w-full md:w-[48%] bg-white p-6 rounded-lg shadow-md'>
 					<h2 className='text-xl font-semibold mb-4 text-gray-900'>
 						Account Overview
 					</h2>
@@ -58,7 +58,7 @@ export default function DashboardContent() {
 					</div>
 				</div>
 			</div>
-			<div className='flex-grow-1 bg-gray-200 p-6 rounded-lg shadow-md md:col-span-2 lg:col-span-1'>
+			<div className='flex-grow-1 bg-white p-6 rounded-lg shadow-md md:col-span-2 lg:col-span-1'>
 				<div className='flex justify-between items-center mb-4'>
 					<h2 className='text-xl font-semibold text-gray-900'>
 						AI Financial Insights

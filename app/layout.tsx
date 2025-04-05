@@ -1,4 +1,5 @@
 import { Inter } from 'next/font/google';
+import { Toaster } from 'react-hot-toast';
 import './globals.css';
 import type { Metadata } from 'next';
 import AuthProvider from '@/providers/AuthProvider';
@@ -25,6 +26,7 @@ export default function RootLayout({
 					<Navbar />
 					<main className='px-2 py-6 max-w-full'>{children}</main>
 				</AuthProvider>
+				<Toaster position='top-right' />
 			</body>
 		</html>
 	);

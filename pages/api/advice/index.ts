@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth';
 import prisma from '../../../lib/prismadb';
 import { authOptions } from '../auth/[...nextauth]';
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { Expense } from '@prisma/client';
+import { format } from 'date-fns';
 
 export default async function handler(
 	req: NextApiRequest,
@@ -29,21 +30,51 @@ export default async function handler(
 	}
 
 	const userId = user.id;
+	const householdId = req.query.householdId as string | undefined;
 
 	// GET /api/advice - Get AI financial advice
 	if (req.method === 'GET') {
 		try {
-			const isRefresh = req.query.refresh === 'true';
+			// Get expenses based on whether a household is selected
+			let expenses: Expense[];
+			if (householdId) {
+				// Check if user is a member of the household
+				const householdMember = await prisma.householdMember.findUnique({
+					where: {
+						userId_householdId: {
+							userId,
+							householdId,
+						},
+					},
+				});
 
-			// Get user's expenses
-			const expenses = await prisma.expense.findMany({
-				where: {
-					userId,
-				},
-				orderBy: {
-					date: 'desc',
-				},
-			});
+				if (!householdMember) {
+					return res
+						.status(403)
+						.json({ error: 'Not a member of this household' });
+				}
+
+				// Get household expenses
+				expenses = await prisma.expense.findMany({
+					where: {
+						householdId,
+					},
+					orderBy: {
+						date: 'desc',
+					},
+				});
+			} else {
+				// Get user's personal expenses
+				expenses = await prisma.expense.findMany({
+					where: {
+						userId,
+						householdId: null,
+					},
+					orderBy: {
+						date: 'desc',
+					},
+				});
+			}
 
 			if (expenses.length < 5) {
 				return res.status(200).json({
@@ -58,10 +89,10 @@ export default async function handler(
 				});
 			}
 
-			// Generate insights using the LLM
+			// Generate insights using the Groq API
 			try {
-				// Gather data for LLM analysis
-				const analysisData = await gatherDataForAnalysis(expenses, userId);
+				// Gather data for analysis
+				const analysisData = await gatherDataForAnalysis(expenses);
 
 				// Structure the prompt for the LLM
 				const messages = [
@@ -105,19 +136,19 @@ export default async function handler(
 				const responseData = await response.json();
 
 				if (responseData.error) {
-					console.error('LLM API error:', responseData.error);
-					throw new Error('LLM request failed');
+					console.error('Groq API error:', responseData.error);
+					throw new Error('Groq API request failed');
 				}
 
 				// Extract recommendations from LLM response
 				const llmResponse = responseData.choices[0].message.content;
 
 				// Parse LLM response into separate recommendations
-				let recommendations = [];
+				let recommendations: string[] = [];
 
 				// Using regex to find numbered patterns or bullet points
 				const recRegex =
-					/(?:\d+\.\s|\-\s|\*\s)(.*?)(?=(?:\d+\.\s|\-\s|\*\s|$))/gs;
+					/(?:\d+\.\s|\-\s|\*\s)(.*?)(?=(?:\d+\.\s|\-\s|\*\s|$))/g;
 				const matches = [...llmResponse.matchAll(recRegex)];
 
 				if (matches.length > 0) {
@@ -126,7 +157,7 @@ export default async function handler(
 					// If no pattern matches, split by double newlines
 					recommendations = llmResponse
 						.split(/\n\n+/)
-						.filter((r) => r.trim().length > 0);
+						.filter((r: string) => r.trim().length > 0);
 				}
 
 				return res.status(200).json({ recommendations });
@@ -150,12 +181,18 @@ export default async function handler(
 }
 
 // Gather necessary data for LLM analysis
-async function gatherDataForAnalysis(expenses, userId) {
+async function gatherDataForAnalysis(expenses: Expense[]) {
 	// Calculate monthly totals
-	const monthlyTotals = {};
-	const categoryTotals = {};
-	const dateCounts = {};
-	const expenseData = [];
+	const monthlyTotals: Record<string, number> = {};
+	const categoryTotals: Record<string, number> = {};
+	const dateCounts: Record<string, { count: number; total: number }> = {};
+	const expenseData: Array<{
+		category: string;
+		description: string;
+		amount: number;
+		date: string;
+		day: string;
+	}> = [];
 
 	expenses.forEach((expense) => {
 		const date = new Date(expense.date);
@@ -201,14 +238,14 @@ async function gatherDataForAnalysis(expenses, userId) {
 	const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
 	// Calculate category percentages
-	const categoryPercentages = {};
+	const categoryPercentages: Record<string, string> = {};
 	Object.entries(categoryTotals).forEach(([category, total]) => {
 		categoryPercentages[category] =
 			((total / totalSpent) * 100).toFixed(1) + '%';
 	});
 
 	// Calculate day averages
-	const dayAverages = {};
+	const dayAverages: Record<string, number> = {};
 	Object.entries(dateCounts).forEach(([day, data]) => {
 		dayAverages[day] = data.total / data.count;
 	});
@@ -226,8 +263,17 @@ async function gatherDataForAnalysis(expenses, userId) {
 }
 
 // Find recurring expenses (similar description and amount)
-function findRecurringExpenses(expenses) {
-	const descriptionMap = {};
+function findRecurringExpenses(
+	expenses: Array<{
+		description: string;
+		amount: number;
+		date: string;
+	}>
+) {
+	const descriptionMap: Record<
+		string,
+		Array<{ amount: number; date: string }>
+	> = {};
 
 	// Group by description
 	expenses.forEach((expense) => {
@@ -235,12 +281,15 @@ function findRecurringExpenses(expenses) {
 		if (!descriptionMap[key]) {
 			descriptionMap[key] = [];
 		}
-		descriptionMap[key].push(expense);
+		descriptionMap[key].push({
+			amount: expense.amount,
+			date: expense.date,
+		});
 	});
 
 	// Filter for recurring expenses (3+ occurrences)
 	return Object.entries(descriptionMap)
-		.filter(([_, items]) => items.length >= 3)
+		.filter(([, items]) => items.length >= 3)
 		.map(([description, items]) => {
 			const total = items.reduce((sum, exp) => sum + exp.amount, 0);
 			const avg = total / items.length;
@@ -254,9 +303,9 @@ function findRecurringExpenses(expenses) {
 }
 
 // Generate fallback recommendations if LLM fails
-function generateFallbackRecommendations(expenses) {
+function generateFallbackRecommendations(expenses: Expense[]) {
 	// Calculate category totals
-	const categoryTotals = {};
+	const categoryTotals: Record<string, number> = {};
 	let totalSpent = 0;
 
 	expenses.forEach((expense) => {

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth';
 import prisma from '../../../lib/prismadb';
 import { authOptions } from '../auth/[...nextauth]';
+import { Prisma } from '@prisma/client';
 
 export default async function handler(
 	req: NextApiRequest,
@@ -65,61 +66,74 @@ export default async function handler(
 		}
 	}
 
-	// PUT /api/expenses/[id] - Update expense
+	// PUT /api/expenses/[id] - Update an expense
 	if (req.method === 'PUT') {
 		try {
-			const { description, amount, date, category, householdId } = req.body;
+			const { description, amount, date, category, householdId, isRecurring } =
+				req.body;
 
-			// Log received data for debugging
-			console.log('API: Updating expense with data:', {
+			console.log('Received update data:', {
 				description,
 				amount,
 				date,
 				category,
 				householdId,
+				isRecurring,
 			});
 
 			// Validate input
 			if (!description || amount === undefined || !date || !category) {
+				console.log('Missing required fields:', {
+					description: !!description,
+					amount: amount !== undefined,
+					date: !!date,
+					category: !!category,
+				});
 				return res.status(400).json({ error: 'Missing required fields' });
 			}
 
 			// Create data object with correct structure
-			const data: any = {
+			const data: Prisma.ExpenseUpdateInput = {
 				description,
 				amount: parseFloat(amount),
 				date: new Date(date),
 				category,
+				isRecurring: isRecurring === true || isRecurring === 'true',
 			};
 
-			// Update household connection if provided
+			// Only add household connection if householdId is provided
 			if (householdId) {
 				data.household = {
 					connect: {
 						id: householdId,
 					},
 				};
-			} else if (householdId === null) {
-				// Disconnect from any household if householdId is null
-				data.householdId = null;
+			} else {
+				// If no householdId is provided, disconnect from any household
+				data.household = {
+					disconnect: true,
+				};
 			}
 
+			console.log('Updating expense with data:', JSON.stringify(data, null, 2));
+
 			// Update expense
-			const updatedExpense = await prisma.expense.update({
+			const expense = await prisma.expense.update({
 				where: {
 					id: expenseId,
 				},
 				data,
-				include: {
-					household: true,
-				},
 			});
 
-			console.log('API: Expense updated successfully:', updatedExpense);
-			return res.status(200).json(updatedExpense);
+			console.log('Expense updated successfully:', expense);
+			return res.status(200).json(expense);
 		} catch (error) {
 			console.error('Error updating expense:', error);
-			return res.status(500).json({ error: 'Failed to update expense' });
+			// Return more detailed error information
+			return res.status(500).json({
+				error: 'Failed to update expense',
+				details: error instanceof Error ? error.message : String(error),
+			});
 		}
 	}
 

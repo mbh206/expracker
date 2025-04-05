@@ -41,34 +41,36 @@ export default function HouseholdsList({
 			{households.map((household) => (
 				<div
 					key={household.id}
-					className='bg-gray-200 text-gray-600 rounded-lg shadow-sm overflow-hidden hover:shadow-lg transition-shadow'>
-					<div className='px-4 py-2'>
-						<h2 className='text-xl font-bold mb-1 truncate'>
-							{household.name}
-						</h2>
-						<div className='text-sm text-gray-400 mb-4'>
-							Created {formatDate(household.createdAt)}
-						</div>
-
-						<div className='flex justify-between mb-4'>
-							<div>
-								<div className='text-sm text-gray-500'>Members</div>
-								<div className='font-semibold'>{household._count.members}</div>
+					className='bg-white text-gray-600 rounded-lg shadow-sm overflow-hidden hover:shadow-lg transition-shadow'>
+					<Link
+						href={`/households/${household.id}`}
+						className='text-blue-600 hover:text-blue-800'>
+						<div className='px-4 py-2'>
+							<h2 className='text-xl font-bold mb-1 truncate'>
+								{household.name}
+							</h2>
+							<div className='text-sm text-gray-400 mb-4'>
+								Created {formatDate(household.createdAt)}
 							</div>
-							<div>
-								<div className='text-sm text-gray-500'>Expenses</div>
-								<div className='font-semibold'>{household._count.expenses}</div>
-							</div>
-						</div>
 
-						<div className='mt-4 flex justify-end'>
-							<Link
-								href={`/households/${household.id}`}
-								className='text-blue-600 hover:text-blue-800'>
-								View Details
-							</Link>
+							<div className='flex justify-between mb-4'>
+								<div>
+									<div className='text-sm text-gray-500'>Members</div>
+									<div className='font-semibold'>
+										{household._count.members}
+									</div>
+								</div>
+								<div>
+									<div className='text-sm text-gray-500'>Expenses</div>
+									<div className='font-semibold'>
+										{household._count.expenses}
+									</div>
+								</div>
+							</div>
+
+							<div className='mt-4 flex justify-end'></div>
 						</div>
-					</div>
+					</Link>
 				</div>
 			))}
 		</div>

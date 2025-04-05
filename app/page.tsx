@@ -1,7 +1,9 @@
 import { Metadata } from 'next';
-import Link from 'next/link';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '../pages/api/auth/[...nextauth]';
+import { redirect } from 'next/navigation';
+import prisma from '../lib/prismadb';
+import HomeDashboard from './_components/HomeDashboard';
 
 export const metadata: Metadata = {
 	title: 'Family Expense Tracker - Home',
@@ -11,35 +13,63 @@ export const metadata: Metadata = {
 export default async function Home() {
 	const session = await getServerSession(authOptions);
 
+	if (!session?.user) {
+		redirect('/auth/signin');
+	}
+
+	// Fetch user's expenses
+	const expenses = await prisma.expense.findMany({
+		where: {
+			userId: session.user.id,
+		},
+		orderBy: {
+			date: 'desc',
+		},
+	});
+
+	// Get recurring expenses
+	const recurringExpenses = expenses.filter(
+		(expense: any) => expense.isRecurring
+	);
+
+	// Get upcoming bills (recurring expenses from the last 30 days)
+	const thirtyDaysAgo = new Date();
+	thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+	const upcomingBills = recurringExpenses.filter((expense: any) => {
+		const expenseDate = new Date(expense.date);
+		return expenseDate >= thirtyDaysAgo;
+	});
+
+	// Fetch AI recommendations
+	let recommendations: string[] = [];
+	try {
+		const response = await fetch(`${process.env.NEXTAUTH_URL}/api/advice`, {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+		});
+
+		if (response.ok) {
+			const data = await response.json();
+			recommendations = data.recommendations;
+		}
+	} catch (error) {
+		console.error('Error fetching recommendations:', error);
+	}
+
 	return (
-		<div className='flex flex-col items-center justify-center min-h-[80vh] text-center'>
-			<h1 className='text-5xl font-bold mb-6'>Family Expense Tracker</h1>
-			<p className='text-xl mb-8 max-w-2xl'>
-				Track your expenses, share with family members, and get AI-powered
-				insights to improve your financial habits.
-			</p>
-			<div className='flex gap-4'>
-				{session ? (
-					<Link
-						href='/dashboard'
-						className='px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition'>
-						Go to Dashboard
-					</Link>
-				) : (
-					<>
-						<Link
-							href='/login'
-							className='px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition'>
-							Login
-						</Link>
-						<Link
-							href='/register'
-							className='px-6 py-3 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition'>
-							Register
-						</Link>
-					</>
-				)}
-			</div>
-		</div>
+		<main className='container mx-auto px-4 py-8'>
+			<h1 className='text-3xl font-bold mb-8'>
+				Welcome to Your Financial Dashboard
+			</h1>
+			<HomeDashboard
+				expenses={expenses}
+				recurringExpenses={recurringExpenses}
+				upcomingBills={upcomingBills}
+				recommendations={recommendations}
+			/>
+		</main>
 	);
 }

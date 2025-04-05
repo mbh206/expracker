@@ -7,6 +7,8 @@ import prisma from '../../../lib/prismadb';
 import { authOptions } from '../../../pages/api/auth/[...nextauth]';
 import HouseholdTabs from '../_components/HouseholdTabs';
 import InviteMemberButton from '../_components/InviteMemberButton';
+import MemberRoleToggle from '../_components/MemberRoleToggle';
+import { HouseholdMember, Expense } from '@prisma/client';
 
 export const metadata: Metadata = {
 	title: 'Household Details - Family Expense Tracker',
@@ -15,6 +17,32 @@ export const metadata: Metadata = {
 
 interface HouseholdDetailPageProps {
 	params: { id: string };
+}
+
+interface MemberWithUser extends HouseholdMember {
+	user: {
+		id: string;
+		name: string | null;
+		email: string | null;
+		image: string | null;
+	};
+}
+
+interface ExpenseWithUser extends Expense {
+	user: {
+		id: string;
+		name: string | null;
+		email: string | null;
+	};
+}
+
+interface HouseholdWithMembersAndExpenses {
+	id: string;
+	name: string;
+	createdAt: Date;
+	updatedAt: Date;
+	members: MemberWithUser[];
+	expenses: ExpenseWithUser[];
 }
 
 export default async function HouseholdDetailPage({
@@ -38,7 +66,7 @@ export default async function HouseholdDetailPage({
 	}
 
 	// Fetch household with members and expenses
-	const household = await prisma.household.findUnique({
+	const household = (await prisma.household.findUnique({
 		where: {
 			id: params.id,
 		},
@@ -70,7 +98,7 @@ export default async function HouseholdDetailPage({
 				},
 			},
 		},
-	});
+	})) as HouseholdWithMembersAndExpenses | null;
 
 	// Check if household exists and user is a member
 	if (
@@ -90,7 +118,7 @@ export default async function HouseholdDetailPage({
 
 	// Calculate total expenses
 	const totalExpenses = household.expenses.reduce(
-		(sum, expense) => sum + expense.amount,
+		(sum: number, expense: ExpenseWithUser) => sum + expense.amount,
 		0
 	);
 
@@ -168,7 +196,15 @@ export default async function HouseholdDetailPage({
 										</div>
 									</div>
 								</div>
-								<div>
+								{isAdmin && (
+									<MemberRoleToggle
+										householdId={household.id}
+										userId={member.userId}
+										currentRole={member.role}
+										isCurrentUser={member.userId === user.id}
+									/>
+								)}
+								{!isAdmin && (
 									<span
 										className={`px-2 py-1 text-xs rounded-full ${
 											member.role === 'admin'
@@ -177,7 +213,7 @@ export default async function HouseholdDetailPage({
 										}`}>
 										{member.role === 'admin' ? 'Admin' : 'Member'}
 									</span>
-								</div>
+								)}
 							</div>
 						))}
 					</div>

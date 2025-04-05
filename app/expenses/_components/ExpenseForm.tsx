@@ -15,6 +15,7 @@ interface ExpenseFormProps {
 		date: string;
 		category: string;
 		householdId?: string | null;
+		isRecurring?: boolean;
 	};
 }
 
@@ -40,6 +41,9 @@ export default function ExpenseForm({
 	);
 	const [householdId, setHouseholdId] = useState(
 		initialData?.householdId || ''
+	);
+	const [isRecurring, setIsRecurring] = useState(
+		initialData?.isRecurring || false
 	);
 
 	// State for loading and errors
@@ -98,13 +102,19 @@ export default function ExpenseForm({
 				throw new Error('Category is required');
 			}
 
+			// Ensure isRecurring is a boolean
+			const isRecurringValue = Boolean(isRecurring);
+
 			const expenseData = {
 				description,
 				amount: amountValue,
 				date,
 				category,
 				householdId: householdId || null,
+				isRecurring: isRecurringValue,
 			};
+
+			console.log('Submitting expense data:', expenseData);
 
 			if (isEditing) {
 				// Update existing expense
@@ -126,8 +136,12 @@ export default function ExpenseForm({
 			}
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		} catch (error: any) {
+			console.error('Error submitting expense:', error);
 			if (axios.isAxiosError(error) && error.response) {
-				setError(error.response.data.error || 'Something went wrong');
+				const errorMessage =
+					error.response.data.error || 'Something went wrong';
+				const errorDetails = error.response.data.details || '';
+				setError(`${errorMessage}${errorDetails ? `: ${errorDetails}` : ''}`);
 			} else {
 				setError(error.message || 'Something went wrong');
 			}
@@ -238,6 +252,20 @@ export default function ExpenseForm({
 					<p className='text-xs text-gray-500 mt-1'>
 						Share this expense with members of a household
 					</p>
+				</div>
+				<div className='flex items-center'>
+					<input
+						id='isRecurring'
+						type='checkbox'
+						checked={isRecurring}
+						onChange={(e) => setIsRecurring(e.target.checked)}
+						className='h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+					/>
+					<label
+						htmlFor='isRecurring'
+						className='ml-2 block text-sm text-gray-700'>
+						This is a recurring expense
+					</label>
 				</div>
 				<div className='flex justify-between pt-4'>
 					<Link
