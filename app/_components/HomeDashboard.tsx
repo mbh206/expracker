@@ -3,13 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import AiRecommendations from '../insights/_components/AiRecommendations';
-
-interface HomeDashboardProps {
-	expenses: any[];
-	recurringExpenses: any[];
-	upcomingBills: any[];
-	recommendations: string[];
-}
+import { HomeDashboardProps } from '../types';
 
 export default function HomeDashboard({
 	expenses,
@@ -219,28 +213,9 @@ export default function HomeDashboard({
 
 			{/* Insights Tab */}
 			{activeTab === 'insights' && (
-				<div className='space-y-6'>
-					<div className='bg-white p-6 rounded-lg shadow-md'>
-						<div className='flex justify-between items-center mb-4'>
-							<h2 className='text-xl font-semibold'>AI Financial Insights</h2>
-							<Link
-								href='/insights'
-								className='text-blue-600 hover:text-blue-800'>
-								View All Insights
-							</Link>
-						</div>
-						<div className='bg-blue-50 p-4 rounded-md mb-4'>
-							<div className='flex items-start'>
-								<span className='text-blue-600 mr-3 text-xl'>💡</span>
-								<p className='text-gray-700'>
-									Our AI analyzes your spending patterns to provide personalized
-									financial advice. These recommendations are based on your
-									actual expense data.
-								</p>
-							</div>
-						</div>
-						<AiRecommendations recommendations={recommendations} />
-					</div>
+				<div className='bg-white p-6 rounded-lg shadow-md'>
+					<h2 className='text-xl font-semibold mb-4'>AI Financial Insights</h2>
+					<AiRecommendations recommendations={recommendations} />
 				</div>
 			)}
 		</div>

@@ -7,7 +7,7 @@ import prisma from '../../../lib/prismadb';
 import { authOptions } from '../../../pages/api/auth/[...nextauth]';
 import HouseholdTabs from '../_components/HouseholdTabs';
 import InviteMemberButton from '../_components/InviteMemberButton';
-import MemberRoleToggle from '../_components/MemberRoleToggle';
+import MemberRoleSelector from '../_components/MemberRoleSelector';
 import { HouseholdMember, Expense } from '@prisma/client';
 
 export const metadata: Metadata = {
@@ -197,10 +197,10 @@ export default async function HouseholdDetailPage({
 									</div>
 								</div>
 								{isAdmin && (
-									<MemberRoleToggle
+									<MemberRoleSelector
 										householdId={household.id}
 										userId={member.userId}
-										currentRole={member.role}
+										currentRole={member.role as 'admin' | 'member'}
 										isCurrentUser={member.userId === user.id}
 									/>
 								)}

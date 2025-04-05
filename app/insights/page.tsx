@@ -38,6 +38,18 @@ export default async function AdvicePage() {
 		},
 	});
 
+	console.log(`Found ${userExpenses.length} expenses for user ${user.id}`);
+	console.log('Expense details:', {
+		count: userExpenses.length,
+		categories: [
+			...new Set(userExpenses.map((e: { category: string }) => e.category)),
+		],
+		totalAmount: userExpenses.reduce(
+			(sum: number, e: { amount: number }) => sum + e.amount,
+			0
+		),
+	});
+
 	// Need at least 5 expenses to provide meaningful advice
 	const hasEnoughData = userExpenses.length >= 5;
 

@@ -3,11 +3,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../pages/api/auth/[...nextauth]';
 import { redirect } from 'next/navigation';
 import prisma from '../lib/prismadb';
-import HomeDashboard from './_components/HomeDashboard';
+import EnhancedDashboard from './_components/EnhancedDashboard';
+import { ExpenseWithRecurring } from './types';
 
 export const metadata: Metadata = {
-	title: 'Family Expense Tracker - Home',
-	description: 'Track, share, and get AI advice on your family expenses',
+	title: 'Expense Tracker - Dashboard',
+	description:
+		'View and manage your personal finances with our simple expense tracker',
 };
 
 export default async function Home() {
@@ -17,59 +19,84 @@ export default async function Home() {
 		redirect('/auth/signin');
 	}
 
+	// Get user from session email
+	const user = session.user?.email
+		? await prisma.user.findUnique({
+				where: { email: session.user.email },
+		  })
+		: null;
+
+	if (!user) {
+		redirect('/auth/signin');
+	}
+
 	// Fetch user's expenses
-	const expenses = await prisma.expense.findMany({
+	const expenses = (await prisma.expense.findMany({
 		where: {
-			userId: session.user.id,
+			userId: user.id,
 		},
 		orderBy: {
 			date: 'desc',
 		},
-	});
+	})) as ExpenseWithRecurring[];
 
 	// Get recurring expenses
 	const recurringExpenses = expenses.filter(
-		(expense: any) => expense.isRecurring
+		(expense: ExpenseWithRecurring) => expense.isRecurring
 	);
 
 	// Get upcoming bills (recurring expenses from the last 30 days)
 	const thirtyDaysAgo = new Date();
 	thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-	const upcomingBills = recurringExpenses.filter((expense: any) => {
-		const expenseDate = new Date(expense.date);
-		return expenseDate >= thirtyDaysAgo;
-	});
+	const upcomingBills = recurringExpenses.filter(
+		(expense: ExpenseWithRecurring) => {
+			const expenseDate = new Date(expense.date);
+			return expenseDate >= thirtyDaysAgo;
+		}
+	);
 
 	// Fetch AI recommendations
 	let recommendations: string[] = [];
 	try {
-		const response = await fetch(`${process.env.NEXTAUTH_URL}/api/advice`, {
+		const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+		const response = await fetch(`${baseUrl}/api/advice`, {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',
+				Authorization: `Bearer ${user.id}`,
 			},
+			cache: 'no-store',
 		});
 
 		if (response.ok) {
 			const data = await response.json();
-			recommendations = data.recommendations;
+			recommendations = data.recommendations || [];
 		}
 	} catch (error) {
 		console.error('Error fetching recommendations:', error);
 	}
 
+	// If we have fewer than 5 expenses, add a note about needing more data
+	if (expenses.length < 5) {
+		recommendations = [
+			'Add at least 5 expenses to get personalized AI recommendations based on your spending patterns.',
+		];
+	} else if (recommendations.length === 0) {
+		// If we have enough expenses but no recommendations, add a note
+		recommendations = [
+			'Unable to generate personalized recommendations at this time. Please try again later.',
+		];
+	}
+
 	return (
-		<main className='container mx-auto px-4 py-8'>
-			<h1 className='text-3xl font-bold mb-8'>
-				Welcome to Your Financial Dashboard
-			</h1>
-			<HomeDashboard
+		<div className='max-w-6xl mx-auto px-4'>
+			<EnhancedDashboard
 				expenses={expenses}
 				recurringExpenses={recurringExpenses}
 				upcomingBills={upcomingBills}
 				recommendations={recommendations}
 			/>
-		</main>
+		</div>
 	);
 }

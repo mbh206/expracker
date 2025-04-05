@@ -68,7 +68,30 @@ export default async function handler(
 
 	// Prevent changing your own role
 	if (userId === session.user.id) {
-		return res.status(400).json({ error: 'You cannot change your own role' });
+		// Allow changing own role only from admin to member
+		if (targetMember.role === 'admin' && req.body.role === 'member') {
+			// This is allowed - proceed with the change
+		} else {
+			return res
+				.status(400)
+				.json({
+					error: 'You can only change your own role from admin to member',
+				});
+		}
+	} else {
+		// If changing another user's role
+		// Don't allow changing other admins' roles
+		if (targetMember.role === 'admin') {
+			return res
+				.status(400)
+				.json({ error: "You cannot change another admin's role" });
+		}
+		// Only allow changing members to admins
+		if (req.body.role !== 'admin') {
+			return res
+				.status(400)
+				.json({ error: 'You can only change members to admins' });
+		}
 	}
 
 	// Update the member's role

@@ -9,27 +9,44 @@ export default async function handler(
 	req: NextApiRequest,
 	res: NextApiResponse
 ) {
-	const session = await getServerSession(req, res, authOptions);
+	// Check for authorization header first
+	const authHeader = req.headers.authorization;
+	let userId: string | null = null;
 
-	if (!session || !session.user?.email) {
+	if (authHeader && authHeader.startsWith('Bearer ')) {
+		userId = authHeader.substring(7);
+		console.log('Using authorization header with userId:', userId);
+		console.log('Full authorization header:', authHeader);
+	} else {
+		console.log('No authorization header found, falling back to session');
+		// Fall back to session if no authorization header
+		const session = await getServerSession(req, res, authOptions);
+		if (!session?.user?.email) {
+			return res.status(401).json({ error: 'Unauthorized' });
+		}
+
+		// Get user ID from email
+		const user = await prisma.user.findUnique({
+			where: {
+				email: session.user.email,
+			},
+			select: {
+				id: true,
+			},
+		});
+
+		if (!user) {
+			return res.status(401).json({ error: 'User not found' });
+		}
+
+		userId = user.id;
+		console.log('Using session with userId:', userId);
+	}
+
+	if (!userId) {
 		return res.status(401).json({ error: 'Unauthorized' });
 	}
 
-	// Get user ID from email
-	const user = await prisma.user.findUnique({
-		where: {
-			email: session.user.email,
-		},
-		select: {
-			id: true,
-		},
-	});
-
-	if (!user) {
-		return res.status(401).json({ error: 'User not found' });
-	}
-
-	const userId = user.id;
 	const householdId = req.query.householdId as string | undefined;
 
 	// GET /api/advice - Get AI financial advice
@@ -63,29 +80,87 @@ export default async function handler(
 						date: 'desc',
 					},
 				});
+				console.log(
+					`Found ${expenses.length} household expenses for household ${householdId}`
+				);
 			} else {
 				// Get user's personal expenses
+				console.log(`Fetching expenses for user ${userId}...`);
 				expenses = await prisma.expense.findMany({
 					where: {
 						userId,
-						householdId: null,
 					},
 					orderBy: {
 						date: 'desc',
 					},
 				});
+				console.log(
+					`Found ${expenses.length} personal expenses for user ${userId}`
+				);
+
+				// Log the first few expenses for debugging
+				if (expenses.length > 0) {
+					console.log(
+						'First few expenses:',
+						expenses.slice(0, 3).map((e) => ({
+							id: e.id,
+							description: e.description,
+							amount: e.amount,
+							date: e.date,
+							category: e.category,
+							userId: e.userId,
+							householdId: e.householdId,
+						}))
+					);
+				}
 			}
 
+			// Log expense details for debugging
+			if (expenses.length > 0) {
+				console.log(
+					'First few expenses:',
+					expenses.slice(0, 3).map((e) => ({
+						id: e.id,
+						description: e.description,
+						amount: e.amount,
+						date: e.date,
+						category: e.category,
+					}))
+				);
+			}
+
+			console.log('Expense details:', {
+				count: expenses.length,
+				categories: [...new Set(expenses.map((e) => e.category))],
+				totalAmount: expenses.reduce((sum, e) => sum + e.amount, 0),
+				dateRange:
+					expenses.length > 0
+						? {
+								oldest: new Date(
+									Math.min(...expenses.map((e) => new Date(e.date).getTime()))
+								),
+								newest: new Date(
+									Math.max(...expenses.map((e) => new Date(e.date).getTime()))
+								),
+						  }
+						: null,
+			});
+
+			// Add more detailed logging
+			console.log(
+				'Checking expense count:',
+				expenses.length,
+				'against minimum threshold of 5'
+			);
+			console.log('User ID:', userId);
+			console.log('Household ID:', householdId || 'None (personal expenses)');
+
 			if (expenses.length < 5) {
+				console.log('Not enough expenses for personalized recommendations');
 				return res.status(200).json({
 					recommendations: [
-						'Consider using a 50/30/20 budget: 50% of income for needs, 30% for wants, and 20% for savings.',
-						'Track your expenses consistently to identify spending patterns and areas for improvement.',
-						'Build an emergency fund that covers 3-6 months of essential expenses.',
-						"Review your subscriptions regularly and cancel those you don't use frequently.",
-						'Try the 24-hour rule for non-essential purchases to reduce impulse spending.',
+						'Add at least 5 expenses to get personalized AI recommendations based on your spending patterns.',
 					],
-					isDemo: true,
 				});
 			}
 
@@ -93,6 +168,11 @@ export default async function handler(
 			try {
 				// Gather data for analysis
 				const analysisData = await gatherDataForAnalysis(expenses);
+				console.log('Analysis data prepared for AI:', {
+					totalSpent: analysisData.totalSpent,
+					expenseCount: analysisData.expenseCount,
+					categories: Object.keys(analysisData.categoryTotals).length,
+				});
 
 				// Structure the prompt for the LLM
 				const messages = [
@@ -115,6 +195,7 @@ export default async function handler(
 				];
 
 				// Call the Groq API
+				console.log('Calling Groq API for recommendations...');
 				const response = await fetch(
 					'https://api.groq.com/openai/v1/chat/completions',
 					{
@@ -137,11 +218,15 @@ export default async function handler(
 
 				if (responseData.error) {
 					console.error('Groq API error:', responseData.error);
-					throw new Error('Groq API request failed');
+					return res.status(500).json({
+						error: 'Failed to generate recommendations',
+						details: responseData.error,
+					});
 				}
 
 				// Extract recommendations from LLM response
 				const llmResponse = responseData.choices[0].message.content;
+				console.log('Received response from Groq API');
 
 				// Parse LLM response into separate recommendations
 				let recommendations: string[] = [];
@@ -160,15 +245,16 @@ export default async function handler(
 						.filter((r: string) => r.trim().length > 0);
 				}
 
+				console.log(
+					`Generated ${recommendations.length} personalized recommendations`
+				);
 				return res.status(200).json({ recommendations });
-			} catch (llmError) {
-				console.error('LLM processing error:', llmError);
-				// Fall back to basic recommendations if LLM fails
-				const fallbackRecommendations =
-					generateFallbackRecommendations(expenses);
-				return res
-					.status(200)
-					.json({ recommendations: fallbackRecommendations });
+			} catch (error) {
+				console.error('Error generating recommendations:', error);
+				return res.status(500).json({
+					error: 'Failed to generate recommendations',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				});
 			}
 		} catch (error) {
 			console.error('Error generating advice:', error);
@@ -300,83 +386,4 @@ function findRecurringExpenses(
 			};
 		})
 		.filter((item) => item.occurrences >= 3); // At least 3 occurrences
-}
-
-// Generate fallback recommendations if LLM fails
-function generateFallbackRecommendations(expenses: Expense[]) {
-	// Calculate category totals
-	const categoryTotals: Record<string, number> = {};
-	let totalSpent = 0;
-
-	expenses.forEach((expense) => {
-		if (!categoryTotals[expense.category]) {
-			categoryTotals[expense.category] = 0;
-		}
-		categoryTotals[expense.category] += expense.amount;
-		totalSpent += expense.amount;
-	});
-
-	// Sort categories by spending
-	const sortedCategories = Object.entries(categoryTotals)
-		.sort((a, b) => b[1] - a[1])
-		.map(([category, total]) => ({
-			category,
-			total,
-			percentage: ((total / totalSpent) * 100).toFixed(1),
-		}));
-
-	const recommendations = [];
-
-	// Add category-specific recommendations
-	if (sortedCategories.length > 0) {
-		const topCategory = sortedCategories[0];
-		if (
-			topCategory.category === 'Housing' &&
-			parseFloat(topCategory.percentage) > 30
-		) {
-			recommendations.push(
-				`Your housing expenses are ${topCategory.percentage}% of your budget. While this is a fixed expense, consider if there are ways to optimize other housing-related costs like utilities or insurance.`
-			);
-		} else if (
-			topCategory.category === 'Food' &&
-			parseFloat(topCategory.percentage) > 15
-		) {
-			recommendations.push(
-				`Food expenses make up ${topCategory.percentage}% of your budget. Consider meal planning, buying in bulk, or reducing dining out to lower this category.`
-			);
-		} else if (parseFloat(topCategory.percentage) > 30) {
-			recommendations.push(
-				`${topCategory.category} is your largest expense category at ${topCategory.percentage}% of your total. Consider ways to reduce spending in this area if possible.`
-			);
-		}
-
-		// Add recommendation for second highest category if it exists
-		if (sortedCategories.length > 1) {
-			const secondCategory = sortedCategories[1];
-			if (parseFloat(secondCategory.percentage) > 15) {
-				recommendations.push(
-					`Your second highest expense category is ${secondCategory.category} at ${secondCategory.percentage}% of your budget. Review these expenses for potential savings.`
-				);
-			}
-		}
-	}
-
-	// Add general recommendations
-	recommendations.push(
-		'Consider using a 50/30/20 budget: 50% for needs, 30% for wants, 20% for savings.'
-	);
-	recommendations.push(
-		"Review your recurring subscriptions monthly and cancel those you don't use regularly."
-	);
-	recommendations.push(
-		'Build an emergency fund with 3-6 months of essential expenses.'
-	);
-	recommendations.push(
-		'Track your expenses consistently to identify spending patterns and saving opportunities.'
-	);
-	recommendations.push(
-		'For non-essential purchases, try waiting 24 hours before buying to reduce impulse spending.'
-	);
-
-	return recommendations;
 }

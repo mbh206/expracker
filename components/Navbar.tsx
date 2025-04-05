@@ -12,6 +12,14 @@ export default function Navbar() {
 	const { data: session, status } = useSession();
 	const isLoggedIn = status === 'authenticated';
 
+	// Debug session data
+	useEffect(() => {
+		if (isLoggedIn) {
+			console.log('Session data:', session);
+			console.log('User image:', session?.user?.image);
+		}
+	}, [session, isLoggedIn]);
+
 	// Profile dropdown state
 	const [showProfileMenu, setShowProfileMenu] = useState(false);
 	const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -58,7 +66,7 @@ export default function Navbar() {
 			<div className='px-4'>
 				<div className='flex items-center justify-between h-16'>
 					<Link
-						href='/dashboard'
+						href='/'
 						className='text-xl font-semibold text-gray-900'>
 						ExpenseTracker
 					</Link>
@@ -67,13 +75,13 @@ export default function Navbar() {
 							{isLoggedIn ? (
 								<>
 									<Link
-										href='/dashboard'
+										href='/'
 										className={`px-3 py-2 rounded-md ${
-											pathname === '/dashboard'
+											pathname === '/'
 												? 'text-blue-600'
 												: 'text-gray-600 hover:text-blue-600'
 										}`}>
-										Dashboard
+										Home
 									</Link>
 									<Link
 										href='/expenses'
@@ -106,22 +114,22 @@ export default function Navbar() {
 							) : (
 								<>
 									<Link
-										href='/login'
+										href='/auth/signin'
 										className={`px-3 py-2 rounded-md ${
-											pathname === '/login'
+											pathname === '/auth/signin'
 												? 'text-blue-600'
 												: 'text-gray-600 hover:text-blue-600'
 										}`}>
-										Login
+										Sign In
 									</Link>
 									<Link
-										href='/register'
+										href='/auth/signup'
 										className={`px-3 py-2 rounded-md ${
-											pathname === '/register'
+											pathname === '/auth/signup'
 												? 'text-blue-600'
 												: 'text-gray-600 hover:text-blue-600'
 										}`}>
-										Register
+										Sign Up
 									</Link>
 								</>
 							)}
@@ -144,6 +152,7 @@ export default function Navbar() {
 														alt={session.user.name || 'User'}
 														fill
 														className='object-cover'
+														priority
 													/>
 												</div>
 											) : (
@@ -198,7 +207,7 @@ export default function Navbar() {
 													signOut({ callbackUrl: '/' });
 												}}
 												className='w-full text-left border-none px-4 py-2 text-sm text-red-600 hover:bg-gray-100'>
-												Sign out
+												Sign Out
 											</button>
 										</div>
 									)}
@@ -207,12 +216,10 @@ export default function Navbar() {
 						</div>
 
 						{/* Mobile menu button */}
-						<div
-							className='md:hidden'
-							ref={mobileMenuRef}>
+						<div className='md:hidden'>
 							<button
 								onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-								className='p-2 border-none rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-100 focus:outline-none'
+								className='inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500'
 								aria-expanded='false'>
 								<span className='sr-only'>Open main menu</span>
 								{/* Icon when menu is closed */}
@@ -251,23 +258,21 @@ export default function Navbar() {
 				</div>
 			</div>
 
-			{/* Mobile menu, show/hide based on menu state */}
+			{/* Mobile menu */}
 			<div
-				className={`${
-					mobileMenuOpen ? 'block' : 'hidden'
-				} md:hidden bg-white border-t border-gray-200`}>
+				className={`${mobileMenuOpen ? 'block' : 'hidden'} md:hidden`}
+				ref={mobileMenuRef}>
 				<div className='px-2 pt-2 pb-3 space-y-1'>
 					{isLoggedIn ? (
 						<>
 							<Link
-								href='/dashboard'
+								href='/'
 								className={`block px-3 py-2 rounded-md text-base font-medium ${
-									pathname === '/dashboard'
+									pathname === '/'
 										? 'text-blue-600 bg-blue-50'
 										: 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								}`}
-								onClick={() => setMobileMenuOpen(false)}>
-								Dashboard
+								}`}>
+								Home
 							</Link>
 							<Link
 								href='/expenses'
@@ -275,8 +280,7 @@ export default function Navbar() {
 									pathname === '/expenses'
 										? 'text-blue-600 bg-blue-50'
 										: 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								}`}
-								onClick={() => setMobileMenuOpen(false)}>
+								}`}>
 								Expenses
 							</Link>
 							<Link
@@ -285,8 +289,7 @@ export default function Navbar() {
 									pathname === '/households'
 										? 'text-blue-600 bg-blue-50'
 										: 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								}`}
-								onClick={() => setMobileMenuOpen(false)}>
+								}`}>
 								Households
 							</Link>
 							<Link
@@ -295,59 +298,43 @@ export default function Navbar() {
 									pathname === '/insights'
 										? 'text-blue-600 bg-blue-50'
 										: 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								}`}
-								onClick={() => setMobileMenuOpen(false)}>
+								}`}>
 								Insights
 							</Link>
-							<div className='border-t border-gray-200 my-1'></div>
 							<Link
 								href='/profile'
-								className='block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								onClick={() => setMobileMenuOpen(false)}>
-								Your Profile
-							</Link>
-							<Link
-								href='/profile/settings'
-								className='block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								onClick={() => setMobileMenuOpen(false)}>
-								Account Settings
-							</Link>
-							<Link
-								href='/expenses/new'
-								className='block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								onClick={() => setMobileMenuOpen(false)}>
-								Add Expense
+								className={`block px-3 py-2 rounded-md text-base font-medium ${
+									pathname === '/profile'
+										? 'text-blue-600 bg-blue-50'
+										: 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+								}`}>
+								Profile
 							</Link>
 							<button
-								onClick={() => {
-									setMobileMenuOpen(false);
-									signOut({ callbackUrl: '/' });
-								}}
-								className='block w-full text-left px-3 py-2 rounded-md border-none text-base font-medium text-red-600 hover:bg-gray-50'>
-								Sign out
+								onClick={() => signOut({ callbackUrl: '/' })}
+								className='block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-gray-50'>
+								Sign Out
 							</button>
 						</>
 					) : (
 						<>
 							<Link
-								href='/login'
+								href='/auth/signin'
 								className={`block px-3 py-2 rounded-md text-base font-medium ${
-									pathname === '/login'
+									pathname === '/auth/signin'
 										? 'text-blue-600 bg-blue-50'
 										: 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								}`}
-								onClick={() => setMobileMenuOpen(false)}>
-								Login
+								}`}>
+								Sign In
 							</Link>
 							<Link
-								href='/register'
+								href='/auth/signup'
 								className={`block px-3 py-2 rounded-md text-base font-medium ${
-									pathname === '/register'
+									pathname === '/auth/signup'
 										? 'text-blue-600 bg-blue-50'
 										: 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-								}`}
-								onClick={() => setMobileMenuOpen(false)}>
-								Register
+								}`}>
+								Sign Up
 							</Link>
 						</>
 					)}

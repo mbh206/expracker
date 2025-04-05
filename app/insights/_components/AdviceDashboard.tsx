@@ -26,9 +26,27 @@ export default function AdviceDashboard({
 	useEffect(() => {
 		const fetchInitialRecommendations = async () => {
 			try {
-				const response = await fetch('/api/advice');
+				// Get the user ID from the session
+				const sessionResponse = await fetch('/api/auth/session');
+				if (!sessionResponse.ok) throw new Error('Failed to fetch session');
+				const sessionData = await sessionResponse.json();
+				const userId = sessionData.user?.id;
+
+				if (!userId) {
+					console.error('No user ID found in session');
+					return;
+				}
+
+				console.log('Fetching recommendations for user:', userId);
+				const response = await fetch('/api/advice', {
+					headers: {
+						Authorization: `Bearer ${userId}`,
+					},
+				});
+
 				if (!response.ok) throw new Error('Failed to fetch recommendations');
 				const data = await response.json();
+				console.log('Received recommendations:', data.recommendations);
 				setRecommendations(data.recommendations);
 			} catch (error) {
 				console.error('Error fetching initial recommendations:', error);
@@ -45,6 +63,17 @@ export default function AdviceDashboard({
 		setIsLoadingExpenses(true);
 
 		try {
+			// Get the user ID from the session
+			const sessionResponse = await fetch('/api/auth/session');
+			if (!sessionResponse.ok) throw new Error('Failed to fetch session');
+			const sessionData = await sessionResponse.json();
+			const userId = sessionData.user?.id;
+
+			if (!userId) {
+				console.error('No user ID found in session');
+				return;
+			}
+
 			// Fetch expenses for the selected household
 			const response = await fetch(
 				`/api/expenses?householdId=${householdId || ''}`
@@ -59,11 +88,23 @@ export default function AdviceDashboard({
 			);
 
 			// Fetch recommendations
+			console.log(
+				'Fetching recommendations for user:',
+				userId,
+				'and household:',
+				householdId || 'personal'
+			);
 			const recResponse = await fetch(
-				`/api/advice?householdId=${householdId || ''}`
+				`/api/advice?householdId=${householdId || ''}`,
+				{
+					headers: {
+						Authorization: `Bearer ${userId}`,
+					},
+				}
 			);
 			if (!recResponse.ok) throw new Error('Failed to fetch recommendations');
 			const recData = await recResponse.json();
+			console.log('Received recommendations:', recData.recommendations);
 			setRecommendations(recData.recommendations);
 		} catch (error) {
 			console.error('Error fetching data:', error);

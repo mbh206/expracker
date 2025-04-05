@@ -49,22 +49,36 @@ export const authOptions: AuthOptions = {
 	],
 	pages: {
 		signIn: '/auth/signin',
+		signOut: '/',
+		error: '/auth/error',
 	},
 	debug: process.env.NODE_ENV === 'development',
 	session: {
 		strategy: 'jwt',
+		maxAge: 30 * 24 * 60 * 60, // 30 days
 	},
 	callbacks: {
 		// Include user.id in session
-		async session({ session, token, user }) {
+		async session({ session, token }) {
 			if (session?.user) {
-				// When using JWT strategy, user comes from token
-				if (token.sub) {
-					session.user.id = token.sub;
-				}
-				// When not using JWT or as a fallback
-				else if (user?.id) {
-					session.user.id = user.id;
+				session.user.id = token.sub as string;
+
+				// Fetch the user from the database to get the latest data
+				const user = await prisma.user.findUnique({
+					where: { id: token.sub as string },
+					select: {
+						id: true,
+						name: true,
+						email: true,
+						image: true,
+					},
+				});
+
+				// Update session with the latest user data
+				if (user) {
+					session.user.name = user.name;
+					session.user.email = user.email;
+					session.user.image = user.image;
 				}
 			}
 			return session;
@@ -72,7 +86,7 @@ export const authOptions: AuthOptions = {
 		// Store the user id in the token
 		async jwt({ token, user }) {
 			if (user) {
-				token.id = user.id;
+				token.sub = user.id;
 			}
 			return token;
 		},

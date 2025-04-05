@@ -131,6 +131,13 @@ export default function AiRecommendations({
 				<div className='flex justify-center items-center h-64'>
 					<div className='animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500'></div>
 				</div>
+			) : recommendations.length === 0 ? (
+				<div className='text-center py-8'>
+					<p className='text-gray-500'>No recommendations available yet.</p>
+					<p className='text-gray-500 mt-2'>
+						Add more expenses to get personalized AI insights.
+					</p>
+				</div>
 			) : (
 				<div className='space-y-4'>
 					{getFilteredRecommendations().map((recommendation, index) => (
